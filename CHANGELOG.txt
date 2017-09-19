@@ -1,0 +1,6 @@
+0.11
+Minor tidying up of code
+Added RETENTION_DAYS logic to copy_snapshots_dest.lambda. This allows setting a shorter retention period in the destination account than in the source account
+
+0.1
+Initial commit

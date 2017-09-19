@@ -307,6 +307,9 @@
 						},
 						"KMS_KEY_SOURCE_REGION": {
 							"Ref": "KmsKeySource"
+						},
+						"RETENTION_DAYS": {
+							"Ref": "RetentionDays"
 						}
 					}
 				},

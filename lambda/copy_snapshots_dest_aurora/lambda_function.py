@@ -25,6 +25,7 @@ PATTERN = os.getenv('SNAPSHOT_PATTERN', 'ALL_SNAPSHOTS')
 DESTINATION_REGION = os.getenv('DEST_REGION').strip()
 KMS_KEY_DEST_REGION = os.getenv('KMS_KEY_DEST_REGION', 'None').strip()
 KMS_KEY_SOURCE_REGION = os.getenv('KMS_KEY_SOURCE_REGION', 'None').strip()
+RETENTION_DAYS = int(os.getenv('RETENTION_DAYS'))
 
 if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
     REGION = os.getenv('REGION_OVERRIDE').strip()
@@ -55,13 +56,13 @@ def get_shared_snapshots(response):
     for snapshot in response['DBClusterSnapshots']:
         if snapshot['SnapshotType'] == 'shared' and re.search(PATTERN, get_snapshot_identifier(snapshot)) and snapshot['Engine'] in SUPPORTED_ENGINES:
             filtered[get_snapshot_identifier(snapshot)] = {
-                'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted']}
+                'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
             if snapshot['StorageEncrypted'] is True:
                 filtered[get_snapshot_identifier(snapshot)]['KmsKeyId'] = snapshot['KmsKeyId']
 
         elif snapshot['SnapshotType'] == 'shared' and PATTERN == 'ALL_SNAPSHOTS' and snapshot['Engine'] in SUPPORTED_ENGINES:
             filtered[get_snapshot_identifier(snapshot)] = {
-                'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted']}
+                'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
             if snapshot['StorageEncrypted'] is True:
                 filtered[get_snapshot_identifier(snapshot)]['KmsKeyId'] = snapshot['KmsKeyId']
     return filtered
@@ -75,19 +76,31 @@ def get_own_snapshots(response):
 
         if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
             filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted']}
+                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
 
             if snapshot['StorageEncrypted'] is True:
                 filtered[snapshot['DBClusterSnapshotIdentifier']]['KmsKeyId'] = snapshot['KmsKeyId']
 
         elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_SNAPSHOTS' and snapshot['Engine'] in SUPPORTED_ENGINES:
             filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted'] }
+                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier'] }
 
             if snapshot['StorageEncrypted'] is True:
                 filtered[snapshot['DBClusterSnapshotIdentifier']]['KmsKeyId'] = snapshot['KmsKeyId']
 
     return filtered
+
+def get_timestamp(snapshot_identifier, snapshot_list):
+    PATTERN = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
+    date_time = re.search(PATTERN, snapshot_identifier)
+    if date_time is not None:
+        try:
+            return datetime.strptime(date_time.group(1), TIMESTAMP_FORMAT)
+        except Exception:
+            return None
+
+    return None
+
 
 
 def copy_local(snapshot_identifier, snapshot_object):
@@ -180,19 +193,33 @@ def lambda_handler(event, context):
     for shared_identifier, shared_attributes in shared_snapshots.items():
 
         if shared_identifier not in own_snapshots.keys() and shared_identifier not in own_dest_snapshots.keys():
+        # Check date
+            creation_date = get_timestamp(shared_identifier, shared_snapshots)
+            if creation_date:
+                time_difference = datetime.now() - creation_date
+                days_difference = time_difference.total_seconds() / 3600 / 24
 
-            # Copy to own account
-            try:
-                copy_local(shared_identifier, shared_attributes)
+                # Only copy if it's newer than RETENTION_DAYS
+                if days_difference < RETENTION_DAYS:
 
-            except Exception:
-                pending_copies += 1
-                logger.error('Local copy pending: %s' % shared_identifier)
+                    # Copy to own account
+                    try:
+                        copy_local(shared_identifier, shared_attributes)
 
-            else:
-                if REGION != DESTINATION_REGION:
-                    pending_copies += 1
-                    logger.error('Remote copy pending: %s' % shared_identifier)
+                    except Exception:
+                        pending_copies += 1
+                        logger.error('Local copy pending: %s' % shared_identifier)
+
+                    else:
+                        if REGION != DESTINATION_REGION:
+                            pending_copies += 1
+                            logger.error('Remote copy pending: %s' % shared_identifier)
+
+                else:
+                    logger.info('Not copying %s locally. Older than %s days' % (shared_identifier, RETENTION_DAYS))
+
+            else: 
+                logger.info('Not copying %s locally. No valid timestamp' % shared_identifier)
 
 
         # Copy to DESTINATION_REGION

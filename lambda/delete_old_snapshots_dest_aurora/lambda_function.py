@@ -71,8 +71,6 @@ def search_tag(response):
 # Return timestamp for a snapshot
 
 def get_timestamp(snapshot_identifier, snapshot_list):
-    # PATTERN = snapshot_list[snapshot_identifier]['DBClusterIdentifier'] + \
-    #    '-(.+)'
     PATTERN = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
     date_time = re.search(PATTERN, snapshot_identifier)
     if date_time is not None:
@@ -117,7 +115,7 @@ def lambda_handler(event, context):
     # for each snapshot
     for snapshot in filtered_list.keys():
         creation_date = get_timestamp(snapshot, filtered_list)
-        if creation_date is not None:
+        if creation_date:
             snapshot_arn = filtered_list[snapshot]['Arn']
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot_arn)
