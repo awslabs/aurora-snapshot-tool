@@ -26,6 +26,7 @@ DESTINATION_REGION = os.getenv('DEST_REGION').strip()
 KMS_KEY_DEST_REGION = os.getenv('KMS_KEY_DEST_REGION', 'None').strip()
 KMS_KEY_SOURCE_REGION = os.getenv('KMS_KEY_SOURCE_REGION', 'None').strip()
 RETENTION_DAYS = int(os.getenv('RETENTION_DAYS'))
+TIMESTAMP_FORMAT = '%Y-%m-%d-%H-%M'
 
 if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
     REGION = os.getenv('REGION_OVERRIDE').strip()
