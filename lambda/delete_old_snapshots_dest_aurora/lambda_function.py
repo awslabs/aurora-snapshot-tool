@@ -19,6 +19,7 @@ import os
 import logging
 from datetime import datetime
 import re
+from snapshots_tool_utils import *
 
 # Initialize everything
 DEST_REGION = os.getenv('DEST_REGION', os.getenv('AWS_DEFAULT_REGION')).strip()
@@ -33,77 +34,6 @@ logger = logging.getLogger()
 logger.setLevel(LOGLEVEL.upper())
 
 
-class SnapshotToolException(Exception):
-    pass
-
-
-# Returns a dict with only shared snapshots filtered by PATTERN, with DBSnapshotIdentifier as key and the response as attribute
-
-def get_own_snapshots(response):
-    filtered = {}
-    for snapshot in response['DBClusterSnapshots']:
-
-        if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-
-        elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_SNAPSHOTS' and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-
-    return filtered
-
-
-# Search for a tag indicating we copied this snapshot
-
-def search_tag(response):
-    try:
-        for tag in response['TagList']:
-            if tag['Key'] == 'CopiedBy' and tag['Value'] == 'Snapshot Tool for Aurora':
-                return True
-
-    except Exception:
-        return False
-
-    return False
-
-
-# Return timestamp for a snapshot
-
-def get_timestamp(snapshot_identifier, snapshot_list):
-    PATTERN = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
-    date_time = re.search(PATTERN, snapshot_identifier)
-    if date_time is not None:
-        try:
-            return datetime.strptime(date_time.group(1), TIMESTAMP_FORMAT)
-        except Exception:
-            return None
-
-    return None
-
-
-def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
-#Takes an RDS boto client and paginates through api_call calls and returns a list of objects of objecttype
-    response = {}
-    kwargs_string = ','.join([ '%s=%s' % (arg,value) for arg,value in kwargs.items() ])
-
-    if kwargs:
-        temp_response = eval('client.%s(%s)' % (api_call, kwargs_string))
-    else:
-        temp_response = eval('client.%s()' % api_call)
-    response[objecttype] = temp_response[objecttype][:]
-
-    while 'Marker' in temp_response:
-        if kwargs:
-            temp_response = eval('client.%s(Marker="%s",%s)' % (api_call, temp_response['Marker'], kwargs_string))
-        else:
-            temp_response = eval('client.%s(Marker="%s")' % api_call, temp_response['Marker'])
-        for obj in temp_response[objecttype]:
-            response[objecttype].append(obj)
-
-    return response
-
-
 
 def lambda_handler(event, context):
     delete_pending = 0
@@ -111,7 +41,7 @@ def lambda_handler(event, context):
     client = boto3.client('rds', region_name=DEST_REGION)
     response = paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots')
     # Filter out the ones not created automatically or with other methods
-    filtered_list = get_own_snapshots(response)
+    filtered_list = get_own_snapshots_dest(PATTERN, response)
     # for each snapshot
     for snapshot in filtered_list.keys():
         creation_date = get_timestamp(snapshot, filtered_list)
@@ -119,7 +49,7 @@ def lambda_handler(event, context):
             snapshot_arn = filtered_list[snapshot]['Arn']
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot_arn)
-            if search_tag(response_tags):
+            if search_tag_copied(response_tags):
                 difference = datetime.now() - creation_date
                 days_difference = difference.total_seconds() / 3600 / 24
                 # if we are past RETENTION_DAYS

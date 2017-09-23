@@ -19,6 +19,7 @@ import time
 import os
 import logging
 import re
+from snapshots_tool_utils import *
 
 # Initialize everything
 LOGLEVEL = os.getenv('LOG_LEVEL').strip()
@@ -36,131 +37,6 @@ logger = logging.getLogger()
 logger.setLevel(LOGLEVEL.upper())
 
 
-class SnapshotToolException(Exception):
-    pass
-
-
-def search_tag(response):
-# Takes a describe_db_cluster_snapshots response and searches for our shareAndCopy tag
-    try:
-
-        for tag in response['TagList']:
-            if tag['Key'] == 'CreatedBy' and tag['Value'] == 'Snapshot Tool for Aurora': return True
-
-    except Exception: return False
-
-    else: return False
-
-
-def filter_clusters(PATTERN, cluster_list):
-# Takes the response from describe-db-clusters and filters according to PATTERN in DBClusterIdentifier
-    filtered_list = []
-
-    for cluster in cluster_list['DBClusters']:
-
-        if PATTERN == 'ALL_CLUSTERS' and cluster['Engine'] in SUPPORTED_ENGINES:
-            filtered_list.append(cluster)
-
-        else:
-            match = re.search(PATTERN, cluster['DBClusterIdentifier'])
-
-            if match and cluster['Engine'] in SUPPORTED_ENGINES:
-                filtered_list.append(cluster)
-
-    return filtered_list
-
-
-
-def get_own_snapshots(response):
-# Filters our own snapshots
-    filtered = {}
-    for snapshot in response['DBClusterSnapshots']:
-
-        client = boto3.client('rds', region_name=REGION)
-        response_tags = client.list_tags_for_resource(
-            ResourceName=snapshot['DBClusterSnapshotArn'])
-
-        if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
-            client = boto3.client('rds', region_name=REGION)
-            response_tags = client.list_tags_for_resource(
-                ResourceName=snapshot['DBClusterSnapshotArn'])
-
-            if search_tag(response_tags):
-                filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                    'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-
-        elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_CLUSTERS' and snapshot['Engine'] in SUPPORTED_ENGINES:
-            client = boto3.client('rds', region_name=REGION)
-            response_tags = client.list_tags_for_resource(
-                ResourceName=snapshot['DBClusterSnapshotArn'])
-            
-            if search_tag(response_tags):
-                filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                    'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-
-    return filtered
-
-
-
-def get_timestamp_no_minute(snapshot_identifier, snapshot_list):
-# Get a timestamp from the name of a snapshot and strip out the minutes
-    PATTERN = '%s-(.+)-\d{2}' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
-    date_time = re.search(PATTERN, snapshot_identifier)
-    if date_time is not None:
-        return datetime.strptime(date_time.group(1), '%Y-%m-%d-%H')
-
-
-
-def get_latest_snapshot_ts(cluster_identifier, filtered_snapshots):
-# Get latest snapshot for a specific DBClusterIdentifier
-    client = boto3.client('rds', REGION)
-    timestamps = []
-    for snapshot,snapshot_object in filtered_snapshots.items():
-        if snapshot_object['DBClusterIdentifier'] == cluster_identifier:
-            timestamp = get_timestamp_no_minute(snapshot, filtered_snapshots)
-            if timestamp is not None:
-                timestamps.append(timestamp)
-    if len(timestamps) > 0:
-        return max(timestamps)
-    else:
-        return None
-
-
-
-def requires_backup(cluster, filtered_snapshots):
-# Returns True if latest snapshot is older than INTERVAL
-    latest = get_latest_snapshot_ts(cluster['DBClusterIdentifier'], filtered_snapshots)
-    if latest is not None:
-        backup_age = datetime.now() - latest
-        if backup_age.total_seconds() >= (BACKUP_INTERVAL * 60 * 60):
-            return True
-        else:
-            return False
-    elif latest is None:
-        return True
-
-
-def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
-#Takes an RDS boto client and paginates through api_call calls and returns a list of objects of objecttype
-    response = {}
-    kwargs_string = ','.join([ '%s=%s' % (arg,value) for arg,value in kwargs.items() ])
-    
-    if kwargs:
-        temp_response = eval('client.%s(%s)' % (api_call, kwargs_string))
-    else:
-        temp_response = eval('client.%s()' % api_call)
-    response[objecttype] = temp_response[objecttype][:]
-
-    while 'Marker' in temp_response:
-        if kwargs:
-            temp_response = eval('client.%s(Marker="%s",%s)' % (api_call, temp_response['Marker'], kwargs_string))
-        else:
-            temp_response = eval('client.%s(Marker="%s")' % api_call, temp_response['Marker'])
-        for obj in temp_response[objecttype]:
-            response[objecttype].append(obj)
-
-    return response
-
 
 def lambda_handler(event, context):
 
@@ -169,13 +45,13 @@ def lambda_handler(event, context):
     now = datetime.now()
     pending_backups = 0
     filtered_clusters = filter_clusters(PATTERN, response)
-    filtered_snapshots = get_own_snapshots(paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots'))
+    filtered_snapshots = get_own_snapshots_source(PATTERN, paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots'))
 
     for db_cluster in filtered_clusters:
 
         timestamp_format = now.strftime('%Y-%m-%d-%H-%M')
 
-        if requires_backup(db_cluster, filtered_snapshots):
+        if requires_backup(BACKUP_INTERVAL, db_cluster, filtered_snapshots):
 
             backup_age = get_latest_snapshot_ts(
                 db_cluster['DBClusterIdentifier'],
@@ -218,3 +94,5 @@ def lambda_handler(event, context):
 
 if __name__ == '__main__':
     lambda_handler(None, None)
+
+

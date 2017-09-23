@@ -8,7 +8,7 @@ Licensed under the Apache License, Version 2.0 (the "License"). You may not use 
 or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 '''
 
-# aurora_delete_old_snapshots
+# delete_old_snapshots_aurora
 # This Lambda function will delete snapshots that have expired and match the regex set in the PATTERN environment variable. It will also look for a matching timestamp in the following format: YYYY-MM-DD-HH-mm
 # Set PATTERN to a regex that matches your Aurora cluster identifiers (by default: <instance_name>-cluster)
 import boto3
@@ -17,6 +17,7 @@ import time
 import os
 import logging
 import re
+from snapshots_tool_utils import *
 
 LOGLEVEL = os.getenv('LOG_LEVEL', 'ERROR').strip()
 PATTERN = os.getenv('PATTERN', 'ALL_CLUSTERS')
@@ -34,71 +35,6 @@ logger = logging.getLogger()
 logger.setLevel(LOGLEVEL.upper())
 
 
-class SnapshotToolException(Exception):
-    pass
-
-
-def get_own_snapshots(response):
-# Filter manual snapshots by PATTERN. Returns a dict of snapshots with DBClusterSnapshotIdentifier as key and Status, DBClusterIdentifier as attributes
-    filtered = {}
-    for snapshot in response['DBClusterSnapshots']:
-        if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-        elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_CLUSTERS' and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-    return filtered
-
-
-
-def search_tag(response):
-# Search for a tag indicating we created this snapshot
-    try:
-        for tag in response['TagList']:
-            if tag['Key'] == 'CreatedBy' and tag['Value'] == 'Snapshot Tool for Aurora':
-                return True
-
-    except Exception:
-        return False
-
-    return False
-
-
-def get_timestamp(snapshot_identifier, snapshot_list):
-# Searches for a timestamp on a snapshot name
-    PATTERN = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
-    date_time = re.search(PATTERN, snapshot_identifier)
-    if date_time is not None:
-        try:
-            return datetime.strptime(date_time.group(1), TIMESTAMP_FORMAT)
-        except Exception:
-            return None
-
-    return None
-
-
-def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
-#Takes an RDS boto client and paginates through api_call calls and returns a list of objects of objecttype
-    response = {}
-    kwargs_string = ','.join([ '%s=%s' % (arg,value) for arg,value in kwargs.items() ])
-
-    if kwargs:
-        temp_response = eval('client.%s(%s)' % (api_call, kwargs_string))
-    else:
-        temp_response = eval('client.%s()' % api_call)
-    response[objecttype] = temp_response[objecttype][:]
-
-    while 'Marker' in temp_response:
-        if kwargs:
-            temp_response = eval('client.%s(Marker="%s",%s)' % (api_call, temp_response['Marker'], kwargs_string))
-        else:
-            temp_response = eval('client.%s(Marker="%s")' % api_call, temp_response['Marker'])
-        for obj in temp_response[objecttype]:
-            response[objecttype].append(obj)
-
-    return response
-
 
 
 def lambda_handler(event, context):
@@ -106,7 +42,7 @@ def lambda_handler(event, context):
     client = boto3.client('rds', region_name=REGION)
     response = paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots')
 
-    filtered_list = get_own_snapshots(response)
+    filtered_list = get_own_snapshots_source(PATTERN, response)
 
     for snapshot in filtered_list.keys():
         creation_date = get_timestamp(snapshot, filtered_list)
@@ -114,7 +50,7 @@ def lambda_handler(event, context):
             snapshot_arn = filtered_list[snapshot]['Arn']
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot_arn)
-            if search_tag(response_tags):
+            if search_tag_created(response_tags):
                 difference = datetime.now() - creation_date
                 days_difference = difference.total_seconds() / 3600 / 24
                 logger.debug('%s created %s days ago' %

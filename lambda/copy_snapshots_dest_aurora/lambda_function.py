@@ -18,6 +18,7 @@ import time
 import os
 import logging
 import re
+from snapshots_tool_utils import *
 
 # Initialize everything
 LOGLEVEL = os.getenv('LOG_LEVEL', 'ERROR').strip()
@@ -39,143 +40,6 @@ logger = logging.getLogger()
 logger.setLevel(LOGLEVEL.upper())
 
 
-class SnapshotToolException(Exception):
-    pass
-
-
-def get_snapshot_identifier(snapshot):
-# Function that will return the Snapshot identifier given an ARN
-    match = re.match('arn:aws:rds:.*:.*:cluster-snapshot:(.+)',
-                     snapshot['DBClusterSnapshotArn'])
-    return match.group(1)
-
-
-
-def get_shared_snapshots(response):
-# Returns a dict with only shared snapshots filtered by PATTERN, with DBSnapshotIdentifier as key and the response as attribute
-    filtered = {}
-    for snapshot in response['DBClusterSnapshots']:
-        if snapshot['SnapshotType'] == 'shared' and re.search(PATTERN, get_snapshot_identifier(snapshot)) and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[get_snapshot_identifier(snapshot)] = {
-                'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-            if snapshot['StorageEncrypted'] is True:
-                filtered[get_snapshot_identifier(snapshot)]['KmsKeyId'] = snapshot['KmsKeyId']
-
-        elif snapshot['SnapshotType'] == 'shared' and PATTERN == 'ALL_SNAPSHOTS' and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[get_snapshot_identifier(snapshot)] = {
-                'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-            if snapshot['StorageEncrypted'] is True:
-                filtered[get_snapshot_identifier(snapshot)]['KmsKeyId'] = snapshot['KmsKeyId']
-    return filtered
-
-
-
-def get_own_snapshots(response):
-# Returns a dict  with local snapshots, filtered by PATTERN, with DBClusterSnapshotIdentifier as key and Arn, Status as attributes
-    filtered = {}
-    for snapshot in response['DBClusterSnapshots']:
-
-        if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-
-            if snapshot['StorageEncrypted'] is True:
-                filtered[snapshot['DBClusterSnapshotIdentifier']]['KmsKeyId'] = snapshot['KmsKeyId']
-
-        elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_SNAPSHOTS' and snapshot['Engine'] in SUPPORTED_ENGINES:
-            filtered[snapshot['DBClusterSnapshotIdentifier']] = {
-                'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier'] }
-
-            if snapshot['StorageEncrypted'] is True:
-                filtered[snapshot['DBClusterSnapshotIdentifier']]['KmsKeyId'] = snapshot['KmsKeyId']
-
-    return filtered
-
-def get_timestamp(snapshot_identifier, snapshot_list):
-    PATTERN = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
-    date_time = re.search(PATTERN, snapshot_identifier)
-    if date_time is not None:
-        try:
-            return datetime.strptime(date_time.group(1), TIMESTAMP_FORMAT)
-        except Exception:
-            return None
-
-    return None
-
-
-
-def copy_local(snapshot_identifier, snapshot_object):
-    client = boto3.client('rds', region_name=REGION)
-
-    tags = [{
-            'Key': 'CopiedBy',
-            'Value': 'Snapshot Tool for Aurora'
-        }]
-
-    if snapshot_object['StorageEncrypted']:
-        logger.info('Copying encrypted snapshot %s locally' % snapshot_identifier)
-        response = client.copy_db_cluster_snapshot(
-            SourceDBClusterSnapshotIdentifier = snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier = snapshot_identifier,
-            KmsKeyId = KMS_KEY_SOURCE_REGION,
-            Tags = tags)
-    
-    else:
-        logger.info('Copying snapshot %s locally' %snapshot_identifier)
-        response = client.copy_db_cluster_snapshot(
-            SourceDBClusterSnapshotIdentifier = snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier = snapshot_identifier,
-            Tags = tags)
-
-    return response
-
-
-def copy_remote(snapshot_identifier, snapshot_object):
-    client = boto3.client('rds', region_name=DESTINATION_REGION)
-    
-    if snapshot_object['StorageEncrypted']:
-        logger.info('Copying encrypted snapshot %s to remote region %s' % (snapshot_object['Arn'], DESTINATION_REGION))
-        response = client.copy_db_cluster_snapshot(
-            SourceDBClusterSnapshotIdentifier = snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier = snapshot_identifier,
-            KmsKeyId = KMS_KEY_DEST_REGION,
-            SourceRegion = REGION,
-            CopyTags = True)
-
-    else:
-        logger.info('Copying snapshot %s to remote region %s' % (snapshot_object['Arn'], DESTINATION_REGION))
-        response = client.copy_db_cluster_snapshot(
-            SourceDBClusterSnapshotIdentifier = snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier = snapshot_identifier,
-            SourceRegion = REGION,
-            CopyTags = True)
-
-    return response
-
-
-def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
-#Takes an RDS boto client and paginates through api_call calls and returns a list of objects of objecttype
-    response = {}
-    kwargs_string = ','.join([ '%s=%s' % (arg,value) for arg,value in kwargs.items() ])
-
-    if kwargs:
-        temp_response = eval('client.%s(%s)' % (api_call, kwargs_string))
-    else:
-        temp_response = eval('client.%s()' % api_call)
-    response[objecttype] = temp_response[objecttype][:]
-
-    while 'Marker' in temp_response:
-        if kwargs:
-            temp_response = eval('client.%s(Marker="%s",%s)' % (api_call, temp_response['Marker'], kwargs_string))
-        else:
-            temp_response = eval('client.%s(Marker="%s")' % api_call, temp_response['Marker'])
-        for obj in temp_response[objecttype]:
-            response[objecttype].append(obj)
-
-    return response
-
-
-
 
 def lambda_handler(event, context):
     # Describe all snapshots
@@ -183,13 +47,13 @@ def lambda_handler(event, context):
     client = boto3.client('rds', region_name=REGION)
     response = paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots', IncludeShared=True)
 
-    shared_snapshots = get_shared_snapshots(response)
-    own_snapshots = get_own_snapshots(response)
+    shared_snapshots = get_shared_snapshots(PATTERN, response)
+    own_snapshots = get_own_snapshots_dest(PATTERN, response)
 
     # Get list of snapshots in DEST_REGION
     client_dest = boto3.client('rds', region_name=DESTINATION_REGION)
     response_dest = paginate_api_call(client_dest, 'describe_db_cluster_snapshots', 'DBClusterSnapshots')
-    own_dest_snapshots = get_own_snapshots(response_dest)
+    own_dest_snapshots = get_own_snapshots_dest(PATTERN, response_dest)
 
     for shared_identifier, shared_attributes in shared_snapshots.items():
 
