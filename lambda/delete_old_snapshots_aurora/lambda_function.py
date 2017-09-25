@@ -45,26 +45,51 @@ def lambda_handler(event, context):
     filtered_list = get_own_snapshots_source(PATTERN, response)
 
     for snapshot in filtered_list.keys():
+
         creation_date = get_timestamp(snapshot, filtered_list)
+
         if creation_date:
+
             snapshot_arn = filtered_list[snapshot]['Arn']
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot_arn)
+
             if search_tag_created(response_tags):
+
                 difference = datetime.now() - creation_date
+
                 days_difference = difference.total_seconds() / 3600 / 24
+
                 logger.debug('%s created %s days ago' %
                              (snapshot, days_difference))
+
                 # if we are past RETENTION_DAYS
                 if days_difference > RETENTION_DAYS:
+
                     # delete it
                     logger.info('Deleting %s' % snapshot)
+
                     try:
                         client.delete_db_cluster_snapshot(
                             DBClusterSnapshotIdentifier=snapshot)
+
                     except Exception:
                         pending_delete += 1
                         logger.info('Could not delete %s ' % snapshot)
+
+                else:
+                # Not older than RETENTION_DAYS
+                    logger.debug('%s created less than %s days. Not deleting' % (snapshot, RETENTION_DAYS))
+
+            else:
+            # Could not find the correct tag
+               logger.debug('Not deleting %s. Did not have the correct tag.' % snapshot)
+
+
+        else:
+        # Did not have a timestamp
+            logger.debug('Not deleting %s. Did not have the correct tag' % snapshot)
+
 
     if pending_delete > 0:
         message = 'Snapshots pending delete: %s' % pending_delete

@@ -21,24 +21,28 @@ import re
 
 
 # Initialize everything
-LOGLEVEL = os.getenv('LOG_LEVEL', 'ERROR').strip()
-BACKUP_INTERVAL = int(os.getenv('INTERVAL', '24'))
-DEST_ACCOUNTID = str(os.getenv('DEST_ACCOUNT', '000000000000')).strip()
-DESTINATION_REGION = os.getenv(
+_LOGLEVEL = os.getenv('LOG_LEVEL', 'ERROR').strip()
+
+_DEST_ACCOUNTID = str(os.getenv('DEST_ACCOUNT', '000000000000')).strip()
+
+_DESTINATION_REGION = os.getenv(
     'DEST_REGION', os.getenv('AWS_DEFAULT_REGION')).strip()
-KMS_KEY_DEST_REGION = os.getenv('KMS_KEY_DEST_REGION', 'None').strip()
-KMS_KEY_SOURCE_REGION = os.getenv('KMS_KEY_SOURCE_REGION', 'None').strip()
-TIMESTAMP_FORMAT = '%Y-%m-%d-%H-%M'
+
+_KMS_KEY_DEST_REGION = os.getenv('KMS_KEY_DEST_REGION', 'None').strip()
+
+_KMS_KEY_SOURCE_REGION = os.getenv('KMS_KEY_SOURCE_REGION', 'None').strip()
+
+_TIMESTAMP_FORMAT = '%Y-%m-%d-%H-%M'
 
 if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
-    REGION = os.getenv('REGION_OVERRIDE').strip()
+    _REGION = os.getenv('REGION_OVERRIDE').strip()
 else:
-    REGION = os.getenv('AWS_DEFAULT_REGION')
+    _REGION = os.getenv('AWS_DEFAULT_REGION')
 
 SUPPORTED_ENGINES = ['aurora']
 
 logger = logging.getLogger()
-logger.setLevel(LOGLEVEL.upper())
+logger.setLevel(_LOGLEVEL.upper())
 
 
 class SnapshotToolException(Exception):
@@ -78,13 +82,11 @@ def filter_clusters(PATTERN, cluster_list):
     return filtered_list
 
 
-
 def get_snapshot_identifier(snapshot):
-# Function that will return the Snapshot identifier given an ARN
+    # Function that will return the Snapshot identifier given an ARN
     match = re.match('arn:aws:rds:.*:.*:cluster-snapshot:(.+)',
                      snapshot['DBClusterSnapshotArn'])
     return match.group(1)
-
 
 
 def get_own_snapshots_source(PATTERN, response):
@@ -92,12 +94,12 @@ def get_own_snapshots_source(PATTERN, response):
     filtered = {}
     for snapshot in response['DBClusterSnapshots']:
 
-        client = boto3.client('rds', region_name=REGION)
+        client = boto3.client('rds', region_name=_REGION)
         response_tags = client.list_tags_for_resource(
             ResourceName=snapshot['DBClusterSnapshotArn'])
 
         if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
-            client = boto3.client('rds', region_name=REGION)
+            client = boto3.client('rds', region_name=_REGION)
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot['DBClusterSnapshotArn'])
 
@@ -106,7 +108,7 @@ def get_own_snapshots_source(PATTERN, response):
                     'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
 
         elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_CLUSTERS' and snapshot['Engine'] in SUPPORTED_ENGINES:
-            client = boto3.client('rds', region_name=REGION)
+            client = boto3.client('rds', region_name=_REGION)
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot['DBClusterSnapshotArn'])
 
@@ -175,7 +177,7 @@ def get_own_snapshots_dest(PATTERN, response):
 
 
 def copy_local(snapshot_identifier, snapshot_object):
-    client = boto3.client('rds', region_name=REGION)
+    client = boto3.client('rds', region_name=_REGION)
 
     tags = [{
             'Key': 'CopiedBy',
@@ -185,14 +187,16 @@ def copy_local(snapshot_identifier, snapshot_object):
     if snapshot_object['StorageEncrypted']:
         logger.info('Copying encrypted snapshot %s locally' %
                     snapshot_identifier)
+
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
             TargetDBClusterSnapshotIdentifier=snapshot_identifier,
-            KmsKeyId=KMS_KEY_SOURCE_REGION,
+            KmsKeyId=_KMS_KEY_SOURCE_REGION,
             Tags=tags)
 
     else:
         logger.info('Copying snapshot %s locally' % snapshot_identifier)
+
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
             TargetDBClusterSnapshotIdentifier=snapshot_identifier,
@@ -202,37 +206,43 @@ def copy_local(snapshot_identifier, snapshot_object):
 
 
 def copy_remote(snapshot_identifier, snapshot_object):
-    client = boto3.client('rds', region_name=DESTINATION_REGION)
+    client = boto3.client('rds', region_name=_DESTINATION_REGION)
 
     if snapshot_object['StorageEncrypted']:
         logger.info('Copying encrypted snapshot %s to remote region %s' %
-                    (snapshot_object['Arn'], DESTINATION_REGION))
+                    (snapshot_object['Arn'], _DESTINATION_REGION))
+
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
             TargetDBClusterSnapshotIdentifier=snapshot_identifier,
-            KmsKeyId=KMS_KEY_DEST_REGION,
-            SourceRegion=REGION,
+            KmsKeyId=_KMS_KEY_DEST_REGION,
+            SourceRegion=_REGION,
             CopyTags=True)
 
     else:
         logger.info('Copying snapshot %s to remote region %s' %
-                    (snapshot_object['Arn'], DESTINATION_REGION))
+                    (snapshot_object['Arn'], _DESTINATION_REGION))
+
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
             TargetDBClusterSnapshotIdentifier=snapshot_identifier,
-            SourceRegion=REGION,
+            SourceRegion=_REGION,
             CopyTags=True)
 
     return response
 
 
 def get_timestamp(snapshot_identifier, snapshot_list):
+
     # Searches for a timestamp on a snapshot name
     PATTERN = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
+
     date_time = re.search(PATTERN, snapshot_identifier)
+
     if date_time is not None:
         try:
-            return datetime.strptime(date_time.group(1), TIMESTAMP_FORMAT)
+            return datetime.strptime(date_time.group(1), _TIMESTAMP_FORMAT)
+
         except Exception:
             return None
 
@@ -240,37 +250,55 @@ def get_timestamp(snapshot_identifier, snapshot_list):
 
 
 def get_timestamp_no_minute(snapshot_identifier, snapshot_list):
+
     # Get a timestamp from the name of a snapshot and strip out the minutes
     PATTERN = '%s-(.+)-\d{2}' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
+
     date_time = re.search(PATTERN, snapshot_identifier)
+
     if date_time is not None:
         return datetime.strptime(date_time.group(1), '%Y-%m-%d-%H')
 
 
 def get_latest_snapshot_ts(cluster_identifier, filtered_snapshots):
+
     # Get latest snapshot for a specific DBClusterIdentifier
     timestamps = []
+
     for snapshot, snapshot_object in filtered_snapshots.items():
+
         if snapshot_object['DBClusterIdentifier'] == cluster_identifier:
+
             timestamp = get_timestamp_no_minute(snapshot, filtered_snapshots)
+
             if timestamp is not None:
+
                 timestamps.append(timestamp)
+
     if len(timestamps) > 0:
+
         return max(timestamps)
+
     else:
         return None
 
 
 def requires_backup(BACKUP_INTERVAL, cluster, filtered_snapshots):
+
     # Returns True if latest snapshot is older than INTERVAL
     latest = get_latest_snapshot_ts(
         cluster['DBClusterIdentifier'], filtered_snapshots)
+
     if latest is not None:
+
         backup_age = datetime.now() - latest
+
         if backup_age.total_seconds() >= (BACKUP_INTERVAL * 60 * 60):
             return True
+
         else:
             return False
+
     elif latest is None:
         return True
 
@@ -288,12 +316,15 @@ def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
     response[objecttype] = temp_response[objecttype][:]
 
     while 'Marker' in temp_response:
+
         if kwargs:
             temp_response = eval('client.%s(Marker="%s",%s)' % (
                 api_call, temp_response['Marker'], kwargs_string))
+
         else:
             temp_response = eval('client.%s(Marker="%s")' %
                                  api_call, temp_response['Marker'])
+
         for obj in temp_response[objecttype]:
             response[objecttype].append(obj)
 
@@ -303,10 +334,15 @@ def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
 def search_tag_share(response):
     # Takes a describe_db_cluster_snapshots response and searches for our shareAndCopy tag
     try:
+
         for tag in response['TagList']:
+
             if tag['Key'] == 'shareAndCopy' and tag['Value'] == 'YES':
+
                 for tag2 in response['TagList']:
+
                     if tag2['Key'] == 'CreatedBy' and tag2['Value'] == 'Snapshot Tool for Aurora':
+
                         return True
 
     except Exception:
@@ -317,7 +353,9 @@ def search_tag_share(response):
 
 def search_tag_copied(response):
     try:
+
         for tag in response['TagList']:
+
             if tag['Key'] == 'CopiedBy' and tag['Value'] == 'Snapshot Tool for Aurora':
                 return True
 
@@ -326,17 +364,3 @@ def search_tag_copied(response):
 
     return False
 
-
-def check_snapshot_shared(response):
-    # Returns True if a snapshot has not been shared with DEST_ACCOUNT
-    try:
-        for attribute in response['DBClusterSnapshotAttributesResult']['DBClusterSnapshotAttributes']:
-            if attribute['AttributeName'] == 'restore':
-                for value in attribute['AttributeValues']:
-                    if str(value) == DEST_ACCOUNTID:
-                        return True
-
-    except Exception:
-        return False
-
-    return False

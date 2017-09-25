@@ -8,7 +8,7 @@ Licensed under the Apache License, Version 2.0 (the "License"). You may not use 
 or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 '''
 
-# aurora_copy_snapshots_dest
+# copy_snapshots_dest_aurora
 # This lambda function will copy shared Aurora snapshots that match the regex specified in the environment variable PATTERN, into the account where it runs. If the snapshot is shared and exists in the local region, it will copy it to the region specified in the environment variable DEST_REGION. If it finds that the snapshots are shared, exist in the local and destination regions, it will delete them from the local region. Copying snapshots cross-account and cross-region need to be separate operations. This function will need to run as many times necessary for the workflow to complete.
 # Set PATTERN to a regex that matches your Aurora cluster identifiers (by default: <instance_name>-cluster)
 # Set DEST_REGION to the destination AWS region

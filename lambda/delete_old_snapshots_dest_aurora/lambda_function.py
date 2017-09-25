@@ -8,7 +8,7 @@ Licensed under the Apache License, Version 2.0 (the "License"). You may not use 
 or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 '''
 
-# aurora_delete_old_snapshots_dest
+# delete_old_snapshots_dest_aurora
 # This lambda function will delete manual snapshots that have expired in the region specified in the environment variable DEST_REGION, and according to the environment variables PATTERN and RETENTION_DAYS.
 # Set PATTERN to a regex that matches your Aurora cluster identifiers (by default: <instance_name>-cluster)
 # Set DEST_REGION to the destination AWS region
@@ -37,40 +37,59 @@ logger.setLevel(LOGLEVEL.upper())
 
 def lambda_handler(event, context):
     delete_pending = 0
+
     # Search for all snapshots
     client = boto3.client('rds', region_name=DEST_REGION)
     response = paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots')
+
     # Filter out the ones not created automatically or with other methods
     filtered_list = get_own_snapshots_dest(PATTERN, response)
-    # for each snapshot
+
+
     for snapshot in filtered_list.keys():
         creation_date = get_timestamp(snapshot, filtered_list)
+
         if creation_date:
+
             snapshot_arn = filtered_list[snapshot]['Arn']
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot_arn)
+
             if search_tag_copied(response_tags):
+
                 difference = datetime.now() - creation_date
                 days_difference = difference.total_seconds() / 3600 / 24
                 # if we are past RETENTION_DAYS
+
                 if days_difference > RETENTION_DAYS:
+
                     # delete it
                     logger.info('Deleting %s. %s days old' %
                                 (snapshot, days_difference))
+
                     try:
                         client.delete_db_cluster_snapshot(
                             DBClusterSnapshotIdentifier=snapshot)
+
                     except Exception:
                         delete_pending += 1
                         logger.info('Could not delete %s' % snapshot)
+
                 else:
                     logger.info('Not deleting %s. Only %s days old' %
                                 (snapshot, days_difference))
+
             else:
                 logger.info(
                     'Not deleting %s. Did not find correct tag' % snapshot)
 
+        else: 
+            logger.debug(
+                'Not deleting %s. Did not find a timestamp' % snapshot)
+
+
     if delete_pending > 0:
+
         log_message = 'Snapshots pending delete: %s' % delete_pending
         logger.error(log_message)
         raise SnapshotToolException(log_message)
