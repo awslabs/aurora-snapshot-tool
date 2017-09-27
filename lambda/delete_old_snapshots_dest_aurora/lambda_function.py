@@ -28,7 +28,6 @@ PATTERN = os.getenv('PATTERN', 'ALL_SNAPSHOTS')
 RETENTION_DAYS = int(os.getenv('RETENTION_DAYS'))
 TIMESTAMP_FORMAT = '%Y-%m-%d-%H-%M'
 
-SUPPORTED_ENGINES = [ 'aurora' ]
 
 logger = logging.getLogger()
 logger.setLevel(LOGLEVEL.upper())

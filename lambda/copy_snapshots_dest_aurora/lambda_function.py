@@ -34,7 +34,6 @@ if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
 else:
     REGION = os.getenv('AWS_DEFAULT_REGION')
 
-SUPPORTED_ENGINES = [ 'aurora' ]
 
 logger = logging.getLogger()
 logger.setLevel(LOGLEVEL.upper())

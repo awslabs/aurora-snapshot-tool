@@ -29,7 +29,6 @@ if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
 else:
     REGION = os.getenv('AWS_DEFAULT_REGION')
 
-SUPPORTED_ENGINES = [ 'aurora' ]
 
 logger = logging.getLogger()
 logger.setLevel(LOGLEVEL.upper())
@@ -50,41 +49,30 @@ def lambda_handler(event, context):
 
         if creation_date:
 
-            snapshot_arn = filtered_list[snapshot]['Arn']
-            response_tags = client.list_tags_for_resource(
-                ResourceName=snapshot_arn)
+            difference = datetime.now() - creation_date
 
-            if search_tag_created(response_tags):
+            days_difference = difference.total_seconds() / 3600 / 24
 
-                difference = datetime.now() - creation_date
+            logger.debug('%s created %s days ago' %
+                         (snapshot, days_difference))
 
-                days_difference = difference.total_seconds() / 3600 / 24
+            # if we are past RETENTION_DAYS
+            if days_difference > RETENTION_DAYS:
 
-                logger.debug('%s created %s days ago' %
-                             (snapshot, days_difference))
+                # delete it
+                logger.info('Deleting %s' % snapshot)
 
-                # if we are past RETENTION_DAYS
-                if days_difference > RETENTION_DAYS:
+                try:
+                    client.delete_db_cluster_snapshot(
+                        DBClusterSnapshotIdentifier=snapshot)
 
-                    # delete it
-                    logger.info('Deleting %s' % snapshot)
-
-                    try:
-                        client.delete_db_cluster_snapshot(
-                            DBClusterSnapshotIdentifier=snapshot)
-
-                    except Exception:
-                        pending_delete += 1
-                        logger.info('Could not delete %s ' % snapshot)
-
-                else:
-                # Not older than RETENTION_DAYS
-                    logger.debug('%s created less than %s days. Not deleting' % (snapshot, RETENTION_DAYS))
+                except Exception:
+                    pending_delete += 1
+                    logger.info('Could not delete %s ' % snapshot)
 
             else:
-            # Could not find the correct tag
-               logger.debug('Not deleting %s. Did not have the correct tag.' % snapshot)
-
+            # Not older than RETENTION_DAYS
+                logger.debug('%s created less than %s days. Not deleting' % (snapshot, RETENTION_DAYS))
 
         else:
         # Did not have a timestamp

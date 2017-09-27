@@ -39,7 +39,7 @@ if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
 else:
     _REGION = os.getenv('AWS_DEFAULT_REGION')
 
-SUPPORTED_ENGINES = ['aurora']
+_SUPPORTED_ENGINES = ['aurora']
 
 logger = logging.getLogger()
 logger.setLevel(_LOGLEVEL.upper())
@@ -64,19 +64,19 @@ def search_tag_created(response):
         return False
 
 
-def filter_clusters(PATTERN, cluster_list):
-    # Takes the response from describe-db-clusters and filters according to PATTERN in DBClusterIdentifier
+def filter_clusters(pattern, cluster_list):
+    # Takes the response from describe-db-clusters and filters according to pattern in DBClusterIdentifier
     filtered_list = []
 
     for cluster in cluster_list['DBClusters']:
 
-        if PATTERN == 'ALL_CLUSTERS' and cluster['Engine'] in SUPPORTED_ENGINES:
+        if pattern == 'ALL_CLUSTERS' and cluster['Engine'] in _SUPPORTED_ENGINES:
             filtered_list.append(cluster)
 
         else:
-            match = re.search(PATTERN, cluster['DBClusterIdentifier'])
+            match = re.search(pattern, cluster['DBClusterIdentifier'])
 
-            if match and cluster['Engine'] in SUPPORTED_ENGINES:
+            if match and cluster['Engine'] in _SUPPORTED_ENGINES:
                 filtered_list.append(cluster)
 
     return filtered_list
@@ -89,7 +89,7 @@ def get_snapshot_identifier(snapshot):
     return match.group(1)
 
 
-def get_own_snapshots_source(PATTERN, response):
+def get_own_snapshots_source(pattern, response):
     # Filters our own snapshots
     filtered = {}
     for snapshot in response['DBClusterSnapshots']:
@@ -98,7 +98,7 @@ def get_own_snapshots_source(PATTERN, response):
         response_tags = client.list_tags_for_resource(
             ResourceName=snapshot['DBClusterSnapshotArn'])
 
-        if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
+        if snapshot['SnapshotType'] == 'manual' and re.search(pattern, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in _SUPPORTED_ENGINES:
             client = boto3.client('rds', region_name=_REGION)
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot['DBClusterSnapshotArn'])
@@ -107,7 +107,7 @@ def get_own_snapshots_source(PATTERN, response):
                 filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                     'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
 
-        elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_CLUSTERS' and snapshot['Engine'] in SUPPORTED_ENGINES:
+        elif snapshot['SnapshotType'] == 'manual' and pattern == 'ALL_CLUSTERS' and snapshot['Engine'] in _SUPPORTED_ENGINES:
             client = boto3.client('rds', region_name=_REGION)
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot['DBClusterSnapshotArn'])
@@ -119,31 +119,31 @@ def get_own_snapshots_source(PATTERN, response):
     return filtered
 
 
-def get_own_snapshots_share(PATTERN, response):
-    # Filter manual snapshots by PATTERN. Returns a dict of snapshots with DBClusterSnapshotIdentifier as key and Status, DBClusterIdentifier as attributes
+def get_own_snapshots_share(pattern, response):
+    # Filter manual snapshots by pattern. Returns a dict of snapshots with DBClusterSnapshotIdentifier as key and Status, DBClusterIdentifier as attributes
     filtered = {}
     for snapshot in response['DBClusterSnapshots']:
-        if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
+        if snapshot['SnapshotType'] == 'manual' and re.search(pattern, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in _SUPPORTED_ENGINES:
             filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                 'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-        elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_CLUSTERS' and snapshot['Engine'] in SUPPORTED_ENGINES:
+        elif snapshot['SnapshotType'] == 'manual' and pattern == 'ALL_CLUSTERS' and snapshot['Engine'] in _SUPPORTED_ENGINES:
             filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                 'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
     return filtered
 
 
-def get_shared_snapshots(PATTERN, response):
-    # Returns a dict with only shared snapshots filtered by PATTERN, with DBSnapshotIdentifier as key and the response as attribute
+def get_shared_snapshots(pattern, response):
+    # Returns a dict with only shared snapshots filtered by pattern, with DBSnapshotIdentifier as key and the response as attribute
     filtered = {}
     for snapshot in response['DBClusterSnapshots']:
-        if snapshot['SnapshotType'] == 'shared' and re.search(PATTERN, get_snapshot_identifier(snapshot)) and snapshot['Engine'] in SUPPORTED_ENGINES:
+        if snapshot['SnapshotType'] == 'shared' and re.search(pattern, get_snapshot_identifier(snapshot)) and snapshot['Engine'] in _SUPPORTED_ENGINES:
             filtered[get_snapshot_identifier(snapshot)] = {
                 'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
             if snapshot['StorageEncrypted'] is True:
                 filtered[get_snapshot_identifier(
                     snapshot)]['KmsKeyId'] = snapshot['KmsKeyId']
 
-        elif snapshot['SnapshotType'] == 'shared' and PATTERN == 'ALL_SNAPSHOTS' and snapshot['Engine'] in SUPPORTED_ENGINES:
+        elif snapshot['SnapshotType'] == 'shared' and pattern == 'ALL_SNAPSHOTS' and snapshot['Engine'] in _SUPPORTED_ENGINES:
             filtered[get_snapshot_identifier(snapshot)] = {
                 'Arn': snapshot['DBClusterSnapshotIdentifier'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
             if snapshot['StorageEncrypted'] is True:
@@ -152,12 +152,12 @@ def get_shared_snapshots(PATTERN, response):
     return filtered
 
 
-def get_own_snapshots_dest(PATTERN, response):
-    # Returns a dict  with local snapshots, filtered by PATTERN, with DBClusterSnapshotIdentifier as key and Arn, Status as attributes
+def get_own_snapshots_dest(pattern, response):
+    # Returns a dict  with local snapshots, filtered by pattern, with DBClusterSnapshotIdentifier as key and Arn, Status as attributes
     filtered = {}
     for snapshot in response['DBClusterSnapshots']:
 
-        if snapshot['SnapshotType'] == 'manual' and re.search(PATTERN, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in SUPPORTED_ENGINES:
+        if snapshot['SnapshotType'] == 'manual' and re.search(pattern, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in _SUPPORTED_ENGINES:
             filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                 'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
 
@@ -165,7 +165,7 @@ def get_own_snapshots_dest(PATTERN, response):
                 filtered[snapshot['DBClusterSnapshotIdentifier']
                          ]['KmsKeyId'] = snapshot['KmsKeyId']
 
-        elif snapshot['SnapshotType'] == 'manual' and PATTERN == 'ALL_SNAPSHOTS' and snapshot['Engine'] in SUPPORTED_ENGINES:
+        elif snapshot['SnapshotType'] == 'manual' and pattern == 'ALL_SNAPSHOTS' and snapshot['Engine'] in _SUPPORTED_ENGINES:
             filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                 'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'StorageEncrypted': snapshot['StorageEncrypted'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
 
@@ -235,9 +235,9 @@ def copy_remote(snapshot_identifier, snapshot_object):
 def get_timestamp(snapshot_identifier, snapshot_list):
 
     # Searches for a timestamp on a snapshot name
-    PATTERN = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
+    pattern = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
 
-    date_time = re.search(PATTERN, snapshot_identifier)
+    date_time = re.search(pattern, snapshot_identifier)
 
     if date_time is not None:
         try:
@@ -252,9 +252,9 @@ def get_timestamp(snapshot_identifier, snapshot_list):
 def get_timestamp_no_minute(snapshot_identifier, snapshot_list):
 
     # Get a timestamp from the name of a snapshot and strip out the minutes
-    PATTERN = '%s-(.+)-\d{2}' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
+    pattern = '%s-(.+)-\d{2}' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
 
-    date_time = re.search(PATTERN, snapshot_identifier)
+    date_time = re.search(pattern, snapshot_identifier)
 
     if date_time is not None:
         return datetime.strptime(date_time.group(1), '%Y-%m-%d-%H')
@@ -283,7 +283,7 @@ def get_latest_snapshot_ts(cluster_identifier, filtered_snapshots):
         return None
 
 
-def requires_backup(BACKUP_INTERVAL, cluster, filtered_snapshots):
+def requires_backup(backup_interval, cluster, filtered_snapshots):
 
     # Returns True if latest snapshot is older than INTERVAL
     latest = get_latest_snapshot_ts(
@@ -293,7 +293,7 @@ def requires_backup(BACKUP_INTERVAL, cluster, filtered_snapshots):
 
         backup_age = datetime.now() - latest
 
-        if backup_age.total_seconds() >= (BACKUP_INTERVAL * 60 * 60):
+        if backup_age.total_seconds() >= (backup_interval * 60 * 60):
             return True
 
         else:
