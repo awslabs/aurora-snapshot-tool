@@ -76,7 +76,7 @@ def lambda_handler(event, context):
 
         else:
         # Did not have a timestamp
-            logger.debug('Not deleting %s. Did not have the correct tag' % snapshot)
+            logger.debug('Not deleting %s. Could not find a timestamp in the name' % snapshot)
 
 
     if pending_delete > 0:
