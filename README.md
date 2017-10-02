@@ -7,7 +7,8 @@ The Snapshot Tool for Aurora automates the task of creating manual snapshots, co
 To deploy on your accounts, you will need to use the Cloudformation templates provided.
 snapshot_tool_aurora_source.json needs to run in the source account (or the account that runs the Aurora clusters)
 snapshot_tool_aurora_dest.json needs to run in the destination account (or the account where you'd like to keep your snapshots)
-** IMPORTANT ** Run the Cloudformation templates on the same region where your Aurora clusters run (both in the source and destination accounts). If that is not possible because AWS Step Functions is not available, you will need to use the **SourceRegionOverride** parameter explained below.
+
+**IMPORTANT** Run the Cloudformation templates on the same region where your Aurora clusters run (both in the source and destination accounts). If that is not possible because AWS Step Functions is not available, you will need to use the **SourceRegionOverride** parameter explained below.
 
 ### Source Account
 #### Components
