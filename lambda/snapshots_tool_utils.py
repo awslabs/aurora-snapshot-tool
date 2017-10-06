@@ -322,8 +322,8 @@ def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
                 api_call, temp_response['Marker'], kwargs_string))
 
         else:
-            temp_response = eval('client.%s(Marker="%s")' %
-                                 api_call, temp_response['Marker'])
+            temp_response = eval('client.%s(Marker="%s")' % (
+                                 api_call, temp_response['Marker']))
 
         for obj in temp_response[objecttype]:
             response[objecttype].append(obj)
