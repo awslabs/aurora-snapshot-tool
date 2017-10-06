@@ -293,6 +293,7 @@
 					"S3Key": "take_snapshots_aurora.zip"
 				},
 				"Description": "This functions triggers snapshots creation for Aurora clusters. It checks for existing snapshots following the pattern and interval specified in the environment variables with the following format: <dbcluster-identifier>-YYYY-MM-DD-HH-MM",
+				"MemorySize" : 512,
 				"Environment": {
 					"Variables": {
 						"INTERVAL": {
@@ -334,6 +335,7 @@
 					"S3Key": "share_snapshots_aurora.zip"
 				},
 				"Description": "This function shares snapshots created by the aurora_take_snapshots function with DEST_ACCOUNT specified in the environment variables. ",
+				"MemorySize" : 512,
 				"Environment": {
 					"Variables": {
 						"DEST_ACCOUNT": {
@@ -375,6 +377,7 @@
 					"S3Key": "delete_old_snapshots_aurora.zip"
 				},
 				"Description": "This function shares snapshots created by the aurora_take_snapshots function with DEST_ACCOUNT specified in the environment variables. ",
+				"MemorySize" : 512,
 				"Environment": {
 					"Variables": {
 						"RETENTION_DAYS": {

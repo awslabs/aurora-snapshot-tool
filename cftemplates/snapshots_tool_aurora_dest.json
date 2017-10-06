@@ -288,6 +288,7 @@
 					"S3Key": "copy_snapshots_dest_aurora.zip"
 				},
 				"Description": "This functions copies snapshots for Aurora clusters shared with this account. It checks for existing snapshots following the pattern specified in the environment variables with the following format: <dbcluster-identifier>-YYYY-MM-DD-HH-MM",
+				"MemorySize" : 512,
 				"Environment": {
 					"Variables": {
 						"SNAPSHOT_PATTERN": {
@@ -337,7 +338,8 @@
 					},
 					"S3Key": "delete_old_snapshots_dest_aurora.zip"
 				},
-				"Description": "This function enforces retention on the snapshots shared with the destination account. . ",
+				"Description": "This function enforces retention on the snapshots shared with the destination account.",
+				"MemorySize" : 512,
 				"Environment": {
 					"Variables": {
 						"DEST_REGION": {
