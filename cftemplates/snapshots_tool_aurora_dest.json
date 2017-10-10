@@ -147,7 +147,7 @@
 				"Namespace": "AWS/States",
 				"Period": "300",
 				"Statistic": "Sum",
-				"Threshold": "1.0",
+				"Threshold": "2.0",
 				"AlarmActions": [{
 					"Ref": "topicCopyFailedDest"
 				}],
@@ -419,7 +419,7 @@
 								"         \"SnapshotToolException\"",
 								"       ],",
 								"       \"IntervalSeconds\":300,",
-								"       \"MaxAttempts\":10,",
+								"       \"MaxAttempts\":5,",
 								"       \"BackoffRate\":1",
 								"     },",
 								"     {",
@@ -520,12 +520,12 @@
 				}]
 			}
 		},
-		"cwEventShareSnapshotsAurora": {
+		"cwEventCopySnapshotsAurora": {
 			"Type": "AWS::Events::Rule",
 			"Properties": {
 				"Description": "Triggers the Aurora Copy state machine in the destination account",
 				"ScheduleExpression": {
-					"Fn::Join": ["", ["cron(", "0 /1 * * ? *", ")"]]
+					"Fn::Join": ["", ["cron(", "/30 * * * ? *", ")"]]
 				},
 				"State": "ENABLED",
 				"Targets": [{

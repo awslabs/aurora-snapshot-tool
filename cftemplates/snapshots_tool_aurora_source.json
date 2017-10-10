@@ -191,7 +191,7 @@
 				"Namespace": "AWS/States",
 				"Period": "3600",
 				"Statistic": "Sum",
-				"Threshold": "2.0",
+				"Threshold": "6.0",
 				"AlarmActions": [{
 					"Ref": "topicShareFailed"
 				}],
@@ -510,14 +510,14 @@
 								"         \"SnapshotToolException\"",
 								"       ],",
 								"       \"IntervalSeconds\":300,",
-								"       \"MaxAttempts\":15,",
+								"       \"MaxAttempts\":3,",
 								"       \"BackoffRate\":1",
 								"     },",
 								"     {",
 								"      \"ErrorEquals\":[ ",
 								"         \"States.ALL\"], ",
 								"         \"IntervalSeconds\": 30,",
-								"         \"MaxAttempts\": 20,",
+								"         \"MaxAttempts\": 10,",
 								"         \"BackoffRate\": 1",
 								"     }",
 								"    ],",
@@ -560,14 +560,14 @@
 								"         \"SnapshotToolException\"",
 								"       ],",
 								"       \"IntervalSeconds\":300,",
-								"       \"MaxAttempts\":15,",
+								"       \"MaxAttempts\":7,",
 								"       \"BackoffRate\":1",
 								"     },",
 								"     {",
 								"      \"ErrorEquals\":[ ",
 								"         \"States.ALL\"], ",
 								"         \"IntervalSeconds\": 30,",
-								"         \"MaxAttempts\": 20,",
+								"         \"MaxAttempts\": 10,",
 								"         \"BackoffRate\": 1",
 								"     }",
 								"    ],",
@@ -638,7 +638,7 @@
 			"Properties": {
 				"Description": "Triggers the ShareSnapshotsAurora state machine",
 				"ScheduleExpression": {
-					"Fn::Join": ["", ["cron(", "0 /1 * * ? *", ")"]]
+					"Fn::Join": ["", ["cron(", "/10 * * * ? *", ")"]]
 				},
 				"State": "ENABLED",
 				"Targets": [{
