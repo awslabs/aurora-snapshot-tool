@@ -106,8 +106,8 @@ def get_own_snapshots_source(pattern, response):
             if search_tag_created(response_tags):
                 filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                     'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
-
-        elif snapshot['SnapshotType'] == 'manual' and pattern == 'ALL_CLUSTERS' and snapshot['Engine'] in _SUPPORTED_ENGINES:
+        #Changed the next line to search for ALL_CLUSTERS or ALL_SNAPSHOTS so it will work with no-x-account
+        elif snapshot['SnapshotType'] == 'manual' and (pattern == 'ALL_CLUSTERS' or pattern == 'ALL_SNAPSHOTS') and snapshot['Engine'] in _SUPPORTED_ENGINES:
             client = boto3.client('rds', region_name=_REGION)
             response_tags = client.list_tags_for_resource(
                 ResourceName=snapshot['DBClusterSnapshotArn'])
