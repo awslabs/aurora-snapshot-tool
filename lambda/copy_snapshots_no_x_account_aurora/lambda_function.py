@@ -8,8 +8,8 @@ Licensed under the Apache License, Version 2.0 (the "License"). You may not use 
 or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 '''
 
-# copy_snapshots_dest_aurora
-# This lambda function will copy source Aurora snapshots that match the regex specified in the environment variable PATTERN, into the account where it runs. If the snapshot is source and exists in the local region, it will copy it to the region specified in the environment variable DEST_REGION. If it finds that the snapshots are source, exist in the local and destination regions, it will delete them from the local region. Copying snapshots cross-account and cross-region need to be separate operations. This function will need to run as many times necessary for the workflow to complete.
+# copy_snapshots_no_x_account_aurora
+# This lambda function will copy source Aurora snapshots that match the regex specified in the environment variable PATTERN into DEST_REGION. This function will need to run as many times necessary for the workflow to complete.
 # Set PATTERN to a regex that matches your Aurora cluster identifiers (by default: <instance_name>-cluster)
 # Set DEST_REGION to the destination AWS region
 import boto3
@@ -47,29 +47,41 @@ def lambda_handler(event, context):
     response = paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots')
 
     source_snapshots = get_own_snapshots_source(PATTERN, response)
-    own_snapshots = get_own_snapshots_dest(PATTERN, response)
+    own_snapshots_encryption = get_own_snapshots_dest(PATTERN, response)
 
     # Get list of snapshots in DEST_REGION
     client_dest = boto3.client('rds', region_name=DESTINATION_REGION)
     response_dest = paginate_api_call(client_dest, 'describe_db_cluster_snapshots', 'DBClusterSnapshots')
-    own_dest_snapshots = get_own_snapshots_dest(PATTERN, response_dest)
+    dest_snapshots = get_own_snapshots_dest(PATTERN, response_dest)
+
 
     for source_identifier, source_attributes in source_snapshots.items():
-        # Copy to DESTINATION_REGION
-        if source_identifier not in own_dest_snapshots.keys() and source_identifier in own_snapshots.keys() and REGION != DESTINATION_REGION:
-            if own_snapshots[source_identifier]['Status'] == 'available':
-                try:
-                    copy_remote(source_identifier, own_snapshots[source_identifier])
-                 
-                except Exception:
-                    pending_copies += 1
-                    logger.error('Remote copy pending: %s: %s' % (
-                        source_identifier, own_snapshots[source_identifier]['Arn']))
-            else:
-                pending_copies += 1
-                logger.error('Remote copy pending: %s: %s' % (
-                    source_identifier, own_snapshots[source_identifier]['Arn']))
+        creation_date = get_timestamp(source_identifier, source_snapshots)
+        if creation_date:
+            time_difference = datetime.now() - creation_date
+            days_difference = time_difference.total_seconds() / 3600 / 24
 
+            # Only copy if it's newer than RETENTION_DAYS
+            if days_difference < RETENTION_DAYS:
+            # Copy to DESTINATION_REGION
+                if source_identifier not in dest_snapshots.keys() and REGION != DESTINATION_REGION:
+                    if source_snapshots[source_identifier]['Status'] == 'available':
+                        try:
+                            copy_remote(source_identifier, own_snapshots_encryption[source_identifier])
+                 
+                        except Exception:
+                            pending_copies += 1
+                            logger.error('Remote copy pending: %s: %s' % (
+                                source_identifier, source_snapshots[source_identifier]['Arn']))
+                    else:
+                        pending_copies += 1
+                        logger.error('Remote copy pending: %s: %s' % (
+                            source_identifier, source_snapshots[source_identifier]['Arn']))
+            else:
+                logger.info('Not copying %s locally. Older than %s days' % (source_identifier, RETENTION_DAYS))
+
+        else: 
+            logger.info('Not copying %s locally. No valid timestamp' % source_identifier)
 
     if pending_copies > 0:
         log_message = 'Copies pending: %s. Needs retrying' % pending_copies

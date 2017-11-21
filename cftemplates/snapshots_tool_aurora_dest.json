@@ -347,7 +347,7 @@
 							"Ref": "CodeBucket"
 						}]
 					},
-					"S3Key": "delete_old_snapshots_dest_aurora.zip"
+					"S3Key": {"Fn::If" : [ "CrossAccount", "delete_old_snapshots_dest_aurora.zip", "delete_old_snapshots_no_x_account_aurora.zip" ]}
 				},
 				"Description": "This function enforces retention on the snapshots shared with the destination account.",
 				"MemorySize" : 512,
