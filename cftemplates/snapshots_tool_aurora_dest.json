@@ -353,6 +353,9 @@
 				"MemorySize" : 512,
 				"Environment": {
 					"Variables": {
+					    "SNAPSHOT_PATTERN": {
+						    "Ref": "SnapshotPattern"
+						},
 						"DEST_REGION": {
 							"Ref": "DestinationRegion"
 						},
