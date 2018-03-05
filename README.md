@@ -53,7 +53,7 @@ On your destination account, you will need to run snapshot_tool_aurora_dest.json
 The following parameters are available:
 
 * **DestinationRegion** - the region where you want your snapshots to be copied. If you set it to the same as the source region, the snapshots will be copied from the source account but will be kept in the source region. This is useful if you would like to keep a copy of your snapshots in a different account but would prefer not to copy them to a different region.
-* **CrossAccountCopy** - if you only need to copy snapshots across regions and not to a different, set this to FALSE. If you do, snapshots shared with the account will not be copied.
+* **CrossAccountCopy** - if you only need to copy snapshots across regions and not to a different account, set this to FALSE. When set to FALSE, any snapshots shared with the account will be ignored.
 * **SnapshotPattern** - similar to ClusterNamePattern. See above
 * **DeleteOldSnapshots** - Set to TRUE to enable functionanility that will delete snapshots after **RetentionDays**. Set to FALSE if you want to disable this functionality completely. (Associated Lambda and State Machine resources will not be created in the account). **WARNING** If you decide to enable this functionality later on, bear in mind it will delete ALL SNAPSHOTS older than RetentionDays created by this tool, not just the ones created after **DeleteOldSnapshots** is set to TRUE.
 * **KmsKeySource** KMS Key to be used for copying encrypted snapshots on the source region. If you are copying to a different region, you will also need to provide a second key in the destination region. 
