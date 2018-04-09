@@ -1,3 +1,6 @@
+0.13 
+Modified the Cloudformation templates to create one topic for all alarms within the stack. The SNS topic can also be specified at stack creation to help in use cases where the tool is deployed multiple times in the same account and region.
+
 0.12
 Added support for copying snapshots to a different region without making a cross-account copy
 

@@ -51,6 +51,11 @@
 			"Default": "TRUE",
 			"Description": "Set to TRUE to enable deletion of snapshot based on RetentionDays. Set to FALSE to disable",
 			"AllowedValues": ["TRUE", "FALSE"]
+		},
+		"SNSTopic": {
+			"Type": "String",
+			"Default": "",
+			"Description": "If you have a topic that you would like subscribed to notifications, enter it here. If empty, the tool will create a new topic"
 		}
 	},
 	"Conditions": {
@@ -68,6 +73,11 @@
 			"Fn::Equals": [{
 				"Ref": "CodeBucket"
 			}, "DEFAULT_BUCKET"]
+		},
+		"SNSTopicIsEmpty": {
+			"Fn::Equals": [{
+				"Ref": "SNSTopic"
+			}, ""]
 		}
 	},
 	"Mappings": {
@@ -96,36 +106,23 @@
 		}
 	},
 	"Resources": {
-		"topicBackupsFailed": {
+		"snsTopicSnapshotsAuroraTool": {
+			"Condition": "SNSTopicIsEmpty",
 			"Type": "AWS::SNS::Topic",
 			"Properties": {
-				"DisplayName": "backups_failed_aurora"
-			}
-		},
-		"topicShareFailed": {
-			"Type": "AWS::SNS::Topic",
-			"Properties": {
-				"DisplayName": "share_failed_aurora"
-			}
-		},
-		"topicDeleteOldFailed": {
-			"Type": "AWS::SNS::Topic",
-			"Properties": {
-				"DisplayName": "delete_old_failed_aurora"
+				"DisplayName": "topic_aurora_tool"
 			}
 		},
 		"snspolicySnapshotsAurora": {
 			"Type": "AWS::SNS::TopicPolicy",
 			"Properties": {
 				"Topics": [{
-						"Ref": "topicBackupsFailed"
-					},
-					{
-						"Ref": "topicShareFailed"
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
 					}, {
-						"Ref": "topicDeleteOldFailed"
-					}
-				],
+						"Ref": "SNSTopic"
+					}]
+				}],
 				"PolicyDocument": {
 					"Version": "2008-10-17",
 					"Id": "__default_policy_ID",
@@ -170,7 +167,11 @@
 				"Statistic": "Sum",
 				"Threshold": "1.0",
 				"AlarmActions": [{
-					"Ref": "topicBackupsFailed"
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
 				}],
 				"Dimensions": [{
 					"Name": "StateMachineArn",
@@ -180,6 +181,7 @@
 				}]
 			}
 		},
+
 		"alarmcwShareFailed": {
 			"Condition": "Share",
 			"Type": "AWS::CloudWatch::Alarm",
@@ -193,7 +195,11 @@
 				"Statistic": "Sum",
 				"Threshold": "6.0",
 				"AlarmActions": [{
-					"Ref": "topicShareFailed"
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
 				}],
 				"Dimensions": [{
 					"Name": "StateMachineArn",
@@ -216,7 +222,11 @@
 				"Statistic": "Sum",
 				"Threshold": "2.0",
 				"AlarmActions": [{
-					"Ref": "topicDeleteOldFailed"
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
 				}],
 				"Dimensions": [{
 					"Name": "StateMachineArn",
@@ -293,7 +303,7 @@
 					"S3Key": "take_snapshots_aurora.zip"
 				},
 				"Description": "This functions triggers snapshots creation for Aurora clusters. It checks for existing snapshots following the pattern and interval specified in the environment variables with the following format: <dbcluster-identifier>-YYYY-MM-DD-HH-MM",
-				"MemorySize" : 512,
+				"MemorySize": 512,
 				"Environment": {
 					"Variables": {
 						"INTERVAL": {
@@ -335,7 +345,7 @@
 					"S3Key": "share_snapshots_aurora.zip"
 				},
 				"Description": "This function shares snapshots created by the aurora_take_snapshots function with DEST_ACCOUNT specified in the environment variables. ",
-				"MemorySize" : 512,
+				"MemorySize": 512,
 				"Environment": {
 					"Variables": {
 						"DEST_ACCOUNT": {
@@ -377,7 +387,7 @@
 					"S3Key": "delete_old_snapshots_aurora.zip"
 				},
 				"Description": "This function shares snapshots created by the aurora_take_snapshots function with DEST_ACCOUNT specified in the environment variables. ",
-				"MemorySize" : 512,
+				"MemorySize": 512,
 				"Environment": {
 					"Variables": {
 						"RETENTION_DAYS": {
@@ -674,24 +684,14 @@
 		}
 	},
 	"Outputs": {
-		"BackupFailedTopic": {
-			"Description": "Subscribe to this topic to receive alerts of failed backups",
+		"SNSTopic": {
+			"Description": "Subscribe to this topic to receive alerts of failures with the snapshots tool",
 			"Value": {
-				"Ref": "topicBackupsFailed"
-			}
-		},
-		"ShareFailedTopic": {
-			"Condition": "Share",
-			"Description": "Subscribe to this topic to receive alerts of failures at sharing snapshots with destination account",
-			"Value": {
-				"Ref": "topicShareFailed"
-			}
-		},
-		"DeleteOldFailedTopic": {
-			"Condition": "DeleteOld",
-			"Description": "Subscribe to this topic to receive alerts of failures at deleting old snapshots",
-			"Value": {
-				"Ref": "topicDeleteOldFailed"
+				"Fn::If": ["SNSTopicIsEmpty", {
+					"Ref": "snsTopicSnapshotsAuroraTool"
+				}, {
+					"Ref": "SNSTopic"
+				}]
 			}
 		}
 	},

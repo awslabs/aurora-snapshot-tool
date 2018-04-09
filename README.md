@@ -16,7 +16,7 @@ The following components will be created in the source account:
 * 3 Lambda functions (TakeSnapshotsAurora, ShareSnapshotsAurora, DeleteOldSnapshotsAurora)
 * 3 State Machines (Amazon Step Functions) to trigger execution of each Lambda function (stateMachineTakeSnapshotAurora, stateMachineShareSnapshotAurora, stateMachineDeleteOldSnapshotsAurora)
 * 3 Cloudwatch Event Rules to trigger the state functions
-* 3 Cloudwatch Alarms and associated SNS Topics to alert on State Machines failures
+* 3 Cloudwatch Alarms and 1 associated SNS Topic to alert on State Machines failures
 * A Cloudformation stack containing all these resources
 
 #### Installing in the source account 
@@ -46,7 +46,7 @@ The following components will be created in the destination account:
 * 2 Lambda functions (CopySnapshotsDestAurora, DeleteOldSnapshotsDestAurora)
 * 2 State Machines (Amazon Step Functions) to trigger execution of each Lambda function (stateMachineCopySnapshotsDestAurora, stateMachineDeleteOldSnapshotsDestAurora)
 * 2 Cloudwatch Event Rules to trigger the state functions
-* 2 Cloudwatch Alarms and associated SNS Topics to alert on State Machines failures
+* 2 Cloudwatch Alarms and associated 1 SNS Topic to alert on State Machines failures
 * A Cloudformation stack containing all these resources
 
 On your destination account, you will need to run snapshot_tool_aurora_dest.json on the Cloudformation. As before, you will need to run it in a region where Step Functions is available. 

@@ -51,6 +51,11 @@
 			"AllowedValues": ["TRUE", "FALSE"],
 			"Default": "TRUE",
 			"Description": "Enable copying snapshots across accounts. Set to FALSE if your source snapshosts are not on a different account"
+		},
+		"SNSTopic": {
+			"Type": "String",
+			"Default": "",
+			"Description": "If you have a topic that you would like subscribed to notifications, enter it here. If empty, the tool will create a new topic"
 		}
 	},
 	"Conditions": {
@@ -68,6 +73,11 @@
 			"Fn::Equals": [{
 				"Ref": "CrossAccountCopy"
 			}, "TRUE" ]
+		},
+		"SNSTopicIsEmpty": {
+			"Fn::Equals": [{
+				"Ref": "SNSTopic"
+			}, ""]
 		}
 	},
 	"Mappings": {
@@ -96,25 +106,22 @@
 		}
 	},
 	"Resources": {
-		"topicCopyFailedDest": {
+		"snsTopicSnapshotsAuroraToolDest": {
+			"Condition": "SNSTopicIsEmpty",
 			"Type": "AWS::SNS::Topic",
 			"Properties": {
-				"DisplayName": "copies_failed_dest_aurora"
+				"DisplayName": "topic_aurora_tool_dest"
 			}
 		},
-		"topicDeleteOldFailedDest": {
-			"Type": "AWS::SNS::Topic",
-			"Properties": {
-				"DisplayName": "delete_old_failed_dest_aurora"
-			}
-		},
-		"snspolicyCopyFailedDest": {
+		"snspolicySnapshotsAuroraDest": {
 			"Type": "AWS::SNS::TopicPolicy",
 			"Properties": {
 				"Topics": [{
-					"Ref": "topicCopyFailedDest"
-				}, {
-					"Ref": "topicDeleteOldFailedDest"
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraToolDest"
+					}, {
+						"Ref": "SNSTopic"
+					}]
 				}],
 				"PolicyDocument": {
 					"Version": "2008-10-17",
@@ -160,7 +167,11 @@
 				"Statistic": "Sum",
 				"Threshold": "2.0",
 				"AlarmActions": [{
-					"Ref": "topicCopyFailedDest"
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraToolDest"
+					}, {
+						"Ref": "SNSTopic"
+					}]
 				}],
 				"Dimensions": [{
 					"Name": "StateMachineArn",
@@ -183,7 +194,11 @@
 				"Statistic": "Sum",
 				"Threshold": "2.0",
 				"AlarmActions": [{
-					"Ref": "topicDeleteOldFailedDest"
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraToolDest"
+					}, {
+						"Ref": "SNSTopic"
+					}]
 				}],
 				"Dimensions": [{
 					"Name": "StateMachineArn",
@@ -575,17 +590,14 @@
 		}
 	},
 	"Outputs": {
-		"CopyFailedTopic": {
-			"Description": "Subscribe to this topic to receive alerts of failed copies",
+		"SNSTopic": {
+			"Description": "Subscribe to this topic to receive alerts of failures with the snapshots tool",
 			"Value": {
-				"Ref": "topicCopyFailedDest"
-			}
-		},
-		"DeleteOldFailedTopic": {
-			"Condition": "DeleteOld",
-			"Description": "Subscribe to this topic to receive alerts of failures at deleting old snapshots",
-			"Value": {
-				"Ref": "topicDeleteOldFailedDest"
+				"Fn::If": ["SNSTopicIsEmpty", {
+					"Ref": "snsTopicSnapshotsAuroraToolDest"
+				}, {
+					"Ref": "SNSTopic"
+				}]
 			}
 		}
 	},
