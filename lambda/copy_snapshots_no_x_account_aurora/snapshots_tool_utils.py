@@ -39,7 +39,7 @@ if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
 else:
     _REGION = os.getenv('AWS_DEFAULT_REGION')
 
-_SUPPORTED_ENGINES = ['aurora']
+_SUPPORTED_ENGINES = [ 'aurora', 'aurora-mysql', 'aurora-postgresql']
 
 logger = logging.getLogger()
 logger.setLevel(_LOGLEVEL.upper())

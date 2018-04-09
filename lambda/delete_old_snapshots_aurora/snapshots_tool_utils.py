@@ -39,7 +39,7 @@ if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
 else:
     _REGION = os.getenv('AWS_DEFAULT_REGION')
 
-_SUPPORTED_ENGINES = ['aurora']
+_SUPPORTED_ENGINES = [ 'aurora', 'aurora-mysql', 'aurora-postgresql']
 
 logger = logging.getLogger()
 logger.setLevel(_LOGLEVEL.upper())
@@ -118,6 +118,34 @@ def get_own_snapshots_source(pattern, response):
 
     return filtered
 
+def get_own_snapshots_no_x_account(pattern, response, REGION):
+    # Filters our own snapshots
+    filtered = {}
+    for snapshot in response['DBClusterSnapshots']:
+
+        client = boto3.client('rds', region_name=REGION)
+        response_tags = client.list_tags_for_resource(
+            ResourceName=snapshot['DBClusterSnapshotArn'])
+
+        if snapshot['SnapshotType'] == 'manual' and re.search(pattern, snapshot['DBClusterSnapshotIdentifier']) and snapshot['Engine'] in _SUPPORTED_ENGINES:
+            client = boto3.client('rds', region_name=REGION)
+            response_tags = client.list_tags_for_resource(
+                ResourceName=snapshot['DBClusterSnapshotArn'])
+
+            if search_tag_created(response_tags):
+                filtered[snapshot['DBClusterSnapshotIdentifier']] = {
+                    'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
+        #Changed the next line to search for ALL_CLUSTERS or ALL_SNAPSHOTS so it will work with no-x-account
+        elif snapshot['SnapshotType'] == 'manual' and pattern == 'ALL_SNAPSHOTS' and snapshot['Engine'] in _SUPPORTED_ENGINES:
+            client = boto3.client('rds', region_name=REGION)
+            response_tags = client.list_tags_for_resource(
+                ResourceName=snapshot['DBClusterSnapshotArn'])
+
+            if search_tag_created(response_tags):
+                filtered[snapshot['DBClusterSnapshotIdentifier']] = {
+                    'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
+
+    return filtered
 
 def get_own_snapshots_share(pattern, response):
     # Filter manual snapshots by pattern. Returns a dict of snapshots with DBClusterSnapshotIdentifier as key and Status, DBClusterIdentifier as attributes
