@@ -90,6 +90,9 @@
 			"eu-west-1": {
 				"Bucket": "snapshots-tool-aurora-eu-west-1"
 			},
+			"eu-west-2": {
+				"Bucket": "snapshots-tool-aurora-eu-west-2-real"
+			},
 			"eu-central-1": {
 				"Bucket": "snapshots-tool-aurora-eu-central-1"
 			}
