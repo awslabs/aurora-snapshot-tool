@@ -74,7 +74,8 @@ def lambda_handler(event, context):
                     Tags=[{'Key': 'CreatedBy', 'Value': 'Snapshot Tool for Aurora'}, {
                         'Key': 'CreatedOn', 'Value': timestamp_format}, {'Key': 'shareAndCopy', 'Value': 'YES'}]
                 )
-            except Exception:
+            except Exception as e:
+                logger.error(e)
                 pending_backups += 1
         else:
 
