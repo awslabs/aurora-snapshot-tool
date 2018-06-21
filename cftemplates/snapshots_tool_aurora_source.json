@@ -161,6 +161,7 @@
 		"alarmcwBackupsFailed": {
 			"Type": "AWS::CloudWatch::Alarm",
 			"Properties": {
+				"AlarmDescription": "DB backup status",
 				"ActionsEnabled": "true",
 				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
 				"EvaluationPeriods": "1",
@@ -169,7 +170,22 @@
 				"Period": "300",
 				"Statistic": "Sum",
 				"Threshold": "1.0",
+				"TreatMissingData": "ignore",
 				"AlarmActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"OKActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"InsufficientDataActions": [{
 					"Fn::If": ["SNSTopicIsEmpty", {
 						"Ref": "snsTopicSnapshotsAuroraTool"
 					}, {
@@ -189,6 +205,7 @@
 			"Condition": "Share",
 			"Type": "AWS::CloudWatch::Alarm",
 			"Properties": {
+				"AlarmDescription": "DB backup transfer to DR region status",
 				"ActionsEnabled": "true",
 				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
 				"EvaluationPeriods": "2",
@@ -198,6 +215,20 @@
 				"Statistic": "Sum",
 				"Threshold": "6.0",
 				"AlarmActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"OKActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"InsufficientDataActions": [{
 					"Fn::If": ["SNSTopicIsEmpty", {
 						"Ref": "snsTopicSnapshotsAuroraTool"
 					}, {
@@ -225,6 +256,20 @@
 				"Statistic": "Sum",
 				"Threshold": "2.0",
 				"AlarmActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"OKActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"InsufficientDataActions": [{
 					"Fn::If": ["SNSTopicIsEmpty", {
 						"Ref": "snsTopicSnapshotsAuroraTool"
 					}, {
