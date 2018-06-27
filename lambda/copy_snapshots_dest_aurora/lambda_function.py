@@ -70,8 +70,9 @@ def lambda_handler(event, context):
                     try:
                         copy_local(shared_identifier, shared_attributes)
 
-                    except Exception:
+                    except Exception as e:
                         pending_copies += 1
+                        logger.error(e)
                         logger.error('Local copy pending: %s' % shared_identifier)
 
                     else:
@@ -92,8 +93,9 @@ def lambda_handler(event, context):
                 try:
                     copy_remote(shared_identifier, own_snapshots[shared_identifier])
                  
-                except Exception:
+                except Exception as e:
                     pending_copies += 1
+                    logger.error(e)
                     logger.error('Remote copy pending: %s: %s' % (
                         shared_identifier, own_snapshots[shared_identifier]['Arn']))
             else:

@@ -70,9 +70,10 @@ def lambda_handler(event, context):
                         client.delete_db_cluster_snapshot(
                             DBClusterSnapshotIdentifier=snapshot)
 
-                    except Exception:
+                    except Exception as e:
                         delete_pending += 1
-                        logger.info('Could not delete %s' % snapshot)
+                        logger.error(e)
+                        logger.error('Could not delete %s' % snapshot)
 
                 else:
                     logger.info('Not deleting %s. Only %s days old' %
