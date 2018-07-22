@@ -161,6 +161,7 @@
 		"alarmcwCopyFailedDest": {
 			"Type": "AWS::CloudWatch::Alarm",
 			"Properties": {
+				"AlarmDescription": "DB Copy to destination status",
 				"ActionsEnabled": "true",
 				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
 				"EvaluationPeriods": "1",
@@ -169,7 +170,22 @@
 				"Period": "300",
 				"Statistic": "Sum",
 				"Threshold": "2.0",
+				"TreatMissingData": "ignore",
 				"AlarmActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraToolDest"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"OKActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraToolDest"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"InsufficientDataActions": [{
 					"Fn::If": ["SNSTopicIsEmpty", {
 						"Ref": "snsTopicSnapshotsAuroraToolDest"
 					}, {
@@ -188,6 +204,7 @@
 			"Type": "AWS::CloudWatch::Alarm",
 			"Condition": "DeleteOld",
 			"Properties": {
+				"AlarmDescription": "Failed to delete old snapshots from destination",
 				"ActionsEnabled": "true",
 				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
 				"EvaluationPeriods": "2",
@@ -197,6 +214,20 @@
 				"Statistic": "Sum",
 				"Threshold": "2.0",
 				"AlarmActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraToolDest"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"OKActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraToolDest"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"InsufficientDataActions": [{
 					"Fn::If": ["SNSTopicIsEmpty", {
 						"Ref": "snsTopicSnapshotsAuroraToolDest"
 					}, {
