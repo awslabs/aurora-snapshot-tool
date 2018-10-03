@@ -105,6 +105,27 @@
 			},
 			"eu-central-1": {
 				"Bucket": "snapshots-tool-aurora-eu-central-1"
+			},
+			"us-west-1": {
+				"Bucket": "snapshots-tool-aurora-us-west-1"
+			},
+			"eu-west-3": {
+				"Bucket": "snapshots-tool-aurora-eu-west-3"
+			},
+			"ap-south-1": {
+				"Bucket": "snapshots-tool-aurora-ap-south-1"
+			},
+			"ap-southeast-1": {
+				"Bucket": "snapshots-tool-aurora-ap-southeast-1"
+			},
+			"ap-northeast-2": {
+				"Bucket": "snapshots-tool-aurora-ap-northeast-2"
+			},
+			"ca-central-1": {
+				"Bucket": "snapshots-tool-aurora-ca-central-1"
+			},
+			"sa-east-1": {
+				"Bucket": "snapshots-tool-aurora-sa-east-1"
 			}
 		}
 	},
