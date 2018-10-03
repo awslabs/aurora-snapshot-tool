@@ -91,6 +91,9 @@
 			"us-east-2": {
 				"Bucket": "snapshots-tool-aurora-us-east-2"
 			},
+			"ap-southeast-1": {
+				"Bucket": "snapshots-tool-aurora-ap-southeast-1"
+			},
 			"ap-southeast-2": {
 				"Bucket": "snapshots-tool-aurora-ap-southeast-2"
 			},
