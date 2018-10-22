@@ -60,6 +60,25 @@ The following parameters are available:
 * **KmsKeyDestination** KMS Key to be used for copying encrypted snapshots to the destination region. If you are not copying to a different region, this parameter is not necessary. 
 * **RetentionDays** - as in the source account, the amount of days you want your snapshots to be kept. **Do not set this parameter to a value lower than the source account.** Snapshots created more than **RetentionDays** ago will be automatically deleted (only if they contain a tag with Key: CopiedBy, Value: Snapshot Tool for Aurora)
 
+## Building From Source and Deploying
+
+As published, these CloudFormation templates will pull the zip files for the Lambda functions from an AWS-owned and operated S3 bucket. You can also choose to build from source and deploy to your own bucket in your own account. To build, you need to be on a unix-like system (e.g., macOS or some flavour of Linux) and you need to have `make` and `zip`.
+
+1. Create an S3 bucket to hold the Lambda function zip files. The bucket must be in the same region where the Lambda functions will run. And the Lambda functions must run in the same region as the RDS instances. 
+
+1. Clone the repository
+
+1. Edit the `Makefile` file and set `S3DEST` to be the bucket name where you want the functions to go. Set the `AWSARGS`, `AWSCMD` and `ZIPCMD` variables as well.
+
+1. Type `make` at the command line. It will call `zip` to make the zip files, and then it will call `aws s3 cp` to copy the zip files to the bucket you named.
+
+1. Be sure to use the correct bucket name in the `CodeBucket` parameter when launching the stack in both accounts.
+
+## Updating
+
+This tool is fundamentally stateless. The state is mainly in the tags on the snapshots themselves and the parameters to the CloudFormation stack. If you make changes to the parameters or make changes to the Lambda function code, it is best to delete the stack and then launch the stack again. 
+
+
 ## Authors
 
 * **Marcelo Coronel** - [mrcoronel](https://github.com/mrcoronel)
