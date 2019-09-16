@@ -138,6 +138,7 @@
 			}
 		},
 		"snspolicySnapshotsAuroraDest": {
+			"Condition": "SNSTopicIsEmpty",
 			"Type": "AWS::SNS::TopicPolicy",
 			"Properties": {
 				"Topics": [{
