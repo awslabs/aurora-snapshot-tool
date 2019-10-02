@@ -41,6 +41,11 @@
 			"Default": "ERROR",
 			"Description": "Log level for Lambda functions (DEBUG, INFO, WARN, ERROR, CRITICAL are valid values)."
 		},
+		"LambdaCWLogRetention": {
+			"Type": "Number",
+			"Default": "7",
+			"Description": "Number of days to retain logs from the lambda functions in CloudWatch Logs"
+		},
 		"SourceRegionOverride": {
 			"Type": "String",
 			"Default": "NO",
@@ -763,6 +768,41 @@
 						"Fn::GetAtt": ["iamroleStepInvocation", "Arn"]
 					}
 				}]
+			}
+		},
+		"cwloggrouplambdaTakeSnapshotsAurora":{
+			"Type": "AWS::Logs::LogGroup",
+			"Description": "Log group for the lambdaTakeSnapshotsAurora function's logs",
+			"DependsOn": "lambdaTakeSnapshotsAurora",
+			"Properties": {
+				"RetentionInDays": { "Ref": "LambdaCWLogRetention" },
+				"LogGroupName": {
+					"Fn::Sub": [ "/aws/lambda/${func}", { "func": {	"Ref" : "lambdaTakeSnapshotsAurora" } } ]
+				}
+			}
+		},
+		"cwloggrouplambdaShareSnapshotsAurora":{
+			"Type": "AWS::Logs::LogGroup",
+			"Description": "Log group for the lambdaShareSnapshotsAurora function's logs",
+			"Condition": "DeleteOld",
+			"DependsOn": "lambdaShareSnapshotsAurora",
+			"Properties": {
+				"RetentionInDays": { "Ref": "LambdaCWLogRetention" },
+				"LogGroupName": {
+					"Fn::Sub": [ "/aws/lambda/${func}", { "func": {	"Ref" : "lambdaShareSnapshotsAurora" } } ]
+				}
+			}
+		},
+		"cwloggrouplambdaDeleteOldSnapshotsAurora":{
+			"Type": "AWS::Logs::LogGroup",
+			"Description": "Log group for the lambdaDeleteOldSnapshotsAurora function's logs",
+			"Condition": "DeleteOld",
+			"DependsOn": "lambdaDeleteOldSnapshotsAurora",
+			"Properties": {
+				"RetentionInDays": { "Ref": "LambdaCWLogRetention" },
+				"LogGroupName": {
+					"Fn::Sub": [ "/aws/lambda/${func}", { "func": {	"Ref" : "lambdaDeleteOldSnapshotsAurora" } } ]
+				}
 			}
 		}
 	},
