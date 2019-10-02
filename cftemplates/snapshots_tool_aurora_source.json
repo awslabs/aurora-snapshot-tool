@@ -249,7 +249,7 @@
 				"Namespace": "AWS/States",
 				"Period": "3600",
 				"Statistic": "Sum",
-				"Threshold": "6.0",
+				"Threshold": "3.0",
 				"AlarmActions": [{
 					"Fn::If": ["SNSTopicIsEmpty", {
 						"Ref": "snsTopicSnapshotsAuroraTool"

@@ -194,7 +194,7 @@
 				"EvaluationPeriods": "1",
 				"MetricName": "ExecutionsFailed",
 				"Namespace": "AWS/States",
-				"Period": "300",
+				"Period": "3600",
 				"Statistic": "Sum",
 				"Threshold": "2.0",
 				"TreatMissingData": "ignore",
