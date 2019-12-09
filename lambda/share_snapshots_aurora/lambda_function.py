@@ -29,6 +29,7 @@ if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
     REGION = os.getenv('REGION_OVERRIDE').strip()
 else:
     REGION = os.getenv('AWS_DEFAULT_REGION')
+BACKUP_KMS = os.getenv('BACKUP_KMS')
 
 
 logger = logging.getLogger()
@@ -38,6 +39,7 @@ logger.setLevel(LOGLEVEL.upper())
 
 def lambda_handler(event, context):
     pending_snapshots = 0
+    now = datetime.now()
     client = boto3.client('rds', region_name=REGION)
     response = paginate_api_call(client, 'describe_db_cluster_snapshots', 'DBClusterSnapshots', SnapshotType='manual')
     filtered = get_own_snapshots_share(PATTERN, response)
@@ -49,15 +51,51 @@ def lambda_handler(event, context):
             ResourceName=snapshot_arn)
 
         if snapshot_object['Status'].lower() == 'available' and search_tag_share(response_tags):
+            # Evaluate if kms in snapshot is default kms or custom kms
+            snapshot_info = client.describe_db_cluster_snapshots(
+                DBClusterSnapshotIdentifier=snapshot_arn
+            )
+            timestamp_format = now.strftime('%Y-%m-%d-%H-%M')
+            targetSnapshot = snapshot_info['DBClusterSnapshots'][0]['DBClusterIdentifier'] + '-' + timestamp_format
+
+            kms = get_kms_type(snapshot_info['DBClusterSnapshots'][0]['KmsKeyId'],REGION)
+            logger.info('Checking Snapshot: {}'.format(snapshot_identifier))
+            
+            
+            if kms is True and BACKUP_KMS is not '':
+                try:
+                    copy_status = client.copy_db_cluster_snapshot(
+                    SourceDBClusterSnapshotIdentifier=snapshot_arn,
+                    TargetDBClusterSnapshotIdentifier=targetSnapshot,
+                    KmsKeyId=BACKUP_KMS,
+                    CopyTags=True
+                )
+                    pass
+                except Exception as e:
+                    logger.error('Exception copy {}: {}'.format(snapshot_arn, e))
+                    pending_snapshots += 1
+                    pass
+                else:
+                    modify_status = client.add_tags_to_resource(
+                    ResourceName=snapshot_arn,
+                    Tags=[
+                        {
+                            'Key': 'shareAndCopy',
+                            'Value': 'No'
+                        }
+                        ]
+                        )
+                    
             try:
                 # Share snapshot with dest_account
                 response_modify = client.modify_db_cluster_snapshot_attribute(
-                    DBClusterSnapshotIdentifier=snapshot_identifier,
-                    AttributeName='restore',
-                    ValuesToAdd=[
-                        DEST_ACCOUNTID
-                    ]
+                DBClusterSnapshotIdentifier=snapshot_identifier,
+                AttributeName='restore',
+                ValuesToAdd=[
+                    DEST_ACCOUNTID
+                ]
                 )
+                logger.info('Sharing: {}'.format(snapshot_identifier))
             except Exception as e:
                 logger.error('Exception sharing {}: {}'.format(snapshot_identifier, e))
                 pending_snapshots += 1
