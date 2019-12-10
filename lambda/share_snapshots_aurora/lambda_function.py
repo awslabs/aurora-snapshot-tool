@@ -58,7 +58,10 @@ def lambda_handler(event, context):
             timestamp_format = now.strftime('%Y-%m-%d-%H-%M')
             targetSnapshot = snapshot_info['DBClusterSnapshots'][0]['DBClusterIdentifier'] + '-' + timestamp_format
 
-            kms = get_kms_type(snapshot_info['DBClusterSnapshots'][0]['KmsKeyId'],REGION)
+            if snapshot_info['DBClusterSnapshots'][0]['Encrypted'] == True:
+                kms = get_kms_type(snapshot_info['DBClusterSnapshots'][0]['KmsKeyId'],REGION)
+            else:
+                kms = False
             logger.info('Checking Snapshot: {}'.format(snapshot_identifier))
             
             
