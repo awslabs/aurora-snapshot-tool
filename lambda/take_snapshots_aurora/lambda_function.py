@@ -15,16 +15,15 @@ or in the "license" file accompanying this file. This file is distributed on an 
 # Set INTERVAL to the amount of hours between backups. This function will list available manual snapshots and only trigger a new one if the latest is older than INTERVAL hours
 import boto3
 from datetime import datetime
-import time
 import os
 import logging
-import re
 from snapshots_tool_utils import *
 
 # Initialize everything
 LOGLEVEL = os.getenv('LOG_LEVEL').strip()
 BACKUP_INTERVAL = int(os.getenv('INTERVAL', '24'))
 PATTERN = os.getenv('PATTERN', 'ALL_CLUSTERS')
+ADD_NAME = os.getenv('ADD_NAME', 'NONE')
 
 if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
     REGION = os.getenv('REGION_OVERRIDE').strip()
@@ -64,8 +63,13 @@ def lambda_handler(event, context):
                 logger.info('Backing up %s. No previous backup found' %
                             db_cluster['DBClusterIdentifier'])
 
-            snapshot_identifier = '%s-%s' % (
-                db_cluster['DBClusterIdentifier'], timestamp_format)
+            if ADD_NAME != 'NONE':
+                snapshot_identifier = '%s-%s-%s' % (
+                    ADD_NAME, db_cluster['DBClusterIdentifier'], timestamp_format
+                )
+            else:
+                snapshot_identifier = '%s-%s' % (
+                    db_cluster['DBClusterIdentifier'], timestamp_format)
 
             try:
                 response = client.create_db_cluster_snapshot(

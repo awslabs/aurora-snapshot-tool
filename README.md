@@ -39,7 +39,7 @@ Here is a break down of each parameter for the source template:
 * **CodeBucket** - this parameter specifies the bucket where the code for the Lambda functions is located. Leave to DEFAULT_BUCKET to download from an AWS-managed bucket. The Lambda function code is located in the ```lambda``` directory. These files need to be on the **root* of the bucket or the CloudFormation templates will fail. 
 * **DeleteOldSnapshots** - Set to TRUE to enable functionanility that will delete snapshots after **RetentionDays**. Set to FALSE if you want to disable this functionality completely. (Associated Lambda and State Machine resources will not be created in the account). **WARNING** If you decide to enable this functionality later on, bear in mind it will delete **all snapshots**, older than **RetentionDays**, created by this tool; not just the ones created after **DeleteOldSnapshots** is set to TRUE.
 * **ShareSnapshots** - Set to TRUE to enable functionality that will share snapshots with **DestAccount**. Set to FALSE to completely disable sharing. (Associated Lambda and State Machine resources will not be created in the account.)
-
+* **AddName** - Set a name that will be added to the front of the snapshot identifiers when created, so that they are formatted as Addname-ClusterIdentifier-Timestamp. Useful if you need to share snapshots from multiple accounts and need to identify from which account they came from.
 ### Destination Account
 #### Components
 The following components will be created in the destination account: 

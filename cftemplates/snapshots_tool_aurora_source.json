@@ -56,7 +56,11 @@
 			"Type": "String",
 			"Default": "",
 			"Description": "If you have a topic that you would like subscribed to notifications, enter it here. If empty, the tool will create a new topic"
-		}
+		},
+	"AddName" : {
+		"Type": "String",
+		"Default": "None",
+		"Description": "Add a name/tag to the front of the snapshot identifier, so they are formatted like this: ADD_NAME-CLUSTERIDENTIFIER-TIMESTAMP"
 	},
 	"Conditions": {
 		"Share": {
@@ -387,7 +391,11 @@
 						},
 						"REGION_OVERRIDE": {
 							"Ref": "SourceRegionOverride"
+						},
+						"ADD_NAME": {
+							"Ref": "AddName"
 						}
+					}
 					}
 				},
 				"Role": {
