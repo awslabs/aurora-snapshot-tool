@@ -57,10 +57,11 @@
 			"Default": "",
 			"Description": "If you have a topic that you would like subscribed to notifications, enter it here. If empty, the tool will create a new topic"
 		},
-	"AddName" : {
-		"Type": "String",
-		"Default": "None",
-		"Description": "Add a name/tag to the front of the snapshot identifier, so they are formatted like this: ADD_NAME-CLUSTERIDENTIFIER-TIMESTAMP"
+		"SnapshotNamePrefix": {
+			"Type": "String",
+			"Default": "",
+			"Description": "Add a name/tag to the front of the snapshot identifier, so they are formatted like this: ADD_NAME-CLUSTERIDENTIFIER-TIMESTAMP"
+		}
 	},
 	"Conditions": {
 		"Share": {
@@ -324,20 +325,20 @@
 					}]
 				},
 				"Policies": [{
-						"PolicyName": "inline_policy_snapshots_aurora_cw_logs",
-						"PolicyDocument": {
-							"Version": "2012-10-17",
-							"Statement": [{
-								"Effect": "Allow",
-								"Action": [
-									"logs:CreateLogGroup",
-									"logs:CreateLogStream",
-									"logs:PutLogEvents"
-								],
-								"Resource": "arn:aws:logs:*:*:*"
-							}]
-						}
-					},
+					"PolicyName": "inline_policy_snapshots_aurora_cw_logs",
+					"PolicyDocument": {
+						"Version": "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents"
+							],
+							"Resource": "arn:aws:logs:*:*:*"
+						}]
+					}
+				},
 					{
 						"PolicyName": "inline_policy_snapshots_aurora_rds",
 						"PolicyDocument": {
@@ -366,13 +367,21 @@
 			"Properties": {
 				"Code": {
 					"S3Bucket": {
-						"Fn::If": ["DefaultBucket", {
-							"Fn::FindInMap": ["Buckets", {
-								"Ref": "AWS::Region"
-							}, "Bucket"]
-						}, {
-							"Ref": "CodeBucket"
-						}]
+						"Fn::If": [
+							"DefaultBucket",
+							{
+								"Fn::FindInMap": [
+									"Buckets",
+									{
+										"Ref": "AWS::Region"
+									},
+									"Bucket"
+								]
+							},
+							{
+								"Ref": "CodeBucket"
+							}
+						]
 					},
 					"S3Key": "take_snapshots_aurora.zip"
 				},
@@ -392,14 +401,16 @@
 						"REGION_OVERRIDE": {
 							"Ref": "SourceRegionOverride"
 						},
-						"ADD_NAME": {
-							"Ref": "AddName"
+						"SNAPSHOT_NAME_PREFIX": {
+							"Ref": "SnapshotNamePrefix"
 						}
-					}
 					}
 				},
 				"Role": {
-					"Fn::GetAtt": ["iamroleSnapshotsAurora", "Arn"]
+					"Fn::GetAtt": [
+						"iamroleSnapshotsAurora",
+						"Arn"
+					]
 				},
 				"Runtime": "python3.7",
 				"Handler": "lambda_function.lambda_handler",
@@ -527,15 +538,15 @@
 			"Properties": {
 				"DefinitionString": {
 					"Fn::Join": ["", [{
-							"Fn::Join": ["\n", [
-								" {\"Comment\":\"Triggers snapshot backup for Aurora clusters\",",
-								" \"StartAt\":\"TakeSnapshots\",",
-								" \"States\":{",
-								"   \"TakeSnapshots\":{",
-								"     \"Type\":\"Task\",",
-								"     \"Resource\": "
-							]]
-						},
+						"Fn::Join": ["\n", [
+							" {\"Comment\":\"Triggers snapshot backup for Aurora clusters\",",
+							" \"StartAt\":\"TakeSnapshots\",",
+							" \"States\":{",
+							"   \"TakeSnapshots\":{",
+							"     \"Type\":\"Task\",",
+							"     \"Resource\": "
+						]]
+					},
 						"\"",
 						{
 							"Fn::GetAtt": ["lambdaTakeSnapshotsAurora", "Arn"]
@@ -577,15 +588,15 @@
 			"Properties": {
 				"DefinitionString": {
 					"Fn::Join": ["", [{
-							"Fn::Join": ["\n", [
-								" {\"Comment\":\"Shares snapshots with DEST_ACCOUNT\",",
-								" \"StartAt\":\"ShareSnapshots\",",
-								" \"States\":{",
-								"   \"ShareSnapshots\":{",
-								"     \"Type\":\"Task\",",
-								"     \"Resource\": "
-							]]
-						},
+						"Fn::Join": ["\n", [
+							" {\"Comment\":\"Shares snapshots with DEST_ACCOUNT\",",
+							" \"StartAt\":\"ShareSnapshots\",",
+							" \"States\":{",
+							"   \"ShareSnapshots\":{",
+							"     \"Type\":\"Task\",",
+							"     \"Resource\": "
+						]]
+					},
 						"\"",
 						{
 							"Fn::GetAtt": ["lambdaShareSnapshotsAurora", "Arn"]
@@ -627,15 +638,15 @@
 			"Properties": {
 				"DefinitionString": {
 					"Fn::Join": ["", [{
-							"Fn::Join": ["\n", [
-								" {\"Comment\":\"DeleteOld management for Aurora snapshots\",",
-								" \"StartAt\":\"DeleteOld\",",
-								" \"States\":{",
-								"   \"DeleteOld\":{",
-								"     \"Type\":\"Task\",",
-								"     \"Resource\": "
-							]]
-						},
+						"Fn::Join": ["\n", [
+							" {\"Comment\":\"DeleteOld management for Aurora snapshots\",",
+							" \"StartAt\":\"DeleteOld\",",
+							" \"States\":{",
+							"   \"DeleteOld\":{",
+							"     \"Type\":\"Task\",",
+							"     \"Resource\": "
+						]]
+					},
 						"\"",
 						{
 							"Fn::GetAtt": ["lambdaDeleteOldSnapshotsAurora", "Arn"]

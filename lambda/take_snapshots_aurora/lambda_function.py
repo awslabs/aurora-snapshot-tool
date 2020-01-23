@@ -23,7 +23,7 @@ from snapshots_tool_utils import *
 LOGLEVEL = os.getenv('LOG_LEVEL').strip()
 BACKUP_INTERVAL = int(os.getenv('INTERVAL', '24'))
 PATTERN = os.getenv('PATTERN', 'ALL_CLUSTERS')
-ADD_NAME = os.getenv('ADD_NAME', 'NONE')
+SNAPSHOT_NAME_PREFIX = os.getenv('SNAPSHOT_NAME_PREFIX', 'NONE')
 
 if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
     REGION = os.getenv('REGION_OVERRIDE').strip()
@@ -63,9 +63,9 @@ def lambda_handler(event, context):
                 logger.info('Backing up %s. No previous backup found' %
                             db_cluster['DBClusterIdentifier'])
 
-            if ADD_NAME != 'NONE':
+            if SNAPSHOT_NAME_PREFIX != 'NONE' and SNAPSHOT_NAME_PREFIX != '':
                 snapshot_identifier = '%s-%s-%s' % (
-                    ADD_NAME, db_cluster['DBClusterIdentifier'], timestamp_format
+                    SNAPSHOT_NAME_PREFIX, db_cluster['DBClusterIdentifier'], timestamp_format
                 )
             else:
                 snapshot_identifier = '%s-%s' % (
