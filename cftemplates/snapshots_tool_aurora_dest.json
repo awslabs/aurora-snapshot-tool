@@ -25,6 +25,11 @@
 			"Default": "ERROR",
 			"Description": "Log level for Lambda functions (DEBUG, INFO, WARN, ERROR, CRITICAL are valid values)."
 		},
+		"LambdaCWLogRetention": {
+			"Type": "Number",
+			"Default": "7",
+			"Description": "Number of days to retain logs from the lambda functions in CloudWatch Logs"
+		},
 		"SourceRegionOverride": {
 			"Type": "String",
 			"Default": "NO",
@@ -189,7 +194,7 @@
 				"EvaluationPeriods": "1",
 				"MetricName": "ExecutionsFailed",
 				"Namespace": "AWS/States",
-				"Period": "300",
+				"Period": "3600",
 				"Statistic": "Sum",
 				"Threshold": "2.0",
 				"TreatMissingData": "ignore",
@@ -642,6 +647,29 @@
 						"Fn::GetAtt": ["iamroleStepInvocation", "Arn"]
 					}
 				}]
+			}
+		},
+		"cwloggrouplambdaCopySnapshotsAurora":{
+			"Type": "AWS::Logs::LogGroup",
+			"Description": "Log group for the lambdaCopySnapshotsAurora function's logs",
+			"DependsOn": "lambdaCopySnapshotsAurora",
+			"Properties": {
+				"RetentionInDays": { "Ref": "LambdaCWLogRetention" },
+				"LogGroupName": {
+					"Fn::Sub": [ "/aws/lambda/${func}", { "func": {	"Ref" : "lambdaCopySnapshotsAurora" } } ]
+				}
+			}
+		},
+		"cwloggrouplambdaDeleteOldDestAurora":{
+			"Type": "AWS::Logs::LogGroup",
+			"Description": "Log group for the lambdaDeleteOldDestAurora function's logs",
+			"Condition": "DeleteOld",
+			"DependsOn": "lambdaDeleteOldDestAurora",
+			"Properties": {
+				"RetentionInDays": { "Ref": "LambdaCWLogRetention" },
+				"LogGroupName": {
+					"Fn::Sub": [ "/aws/lambda/${func}", { "func": {	"Ref" : "lambdaDeleteOldDestAurora" } } ]
+				}
 			}
 		}
 	},

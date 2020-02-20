@@ -13,7 +13,7 @@ or in the "license" file accompanying this file. This file is distributed on an 
 # Support module for the Snapshots Tool for Aurora
 
 import boto3
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 import os
 import logging
@@ -40,6 +40,8 @@ else:
     _REGION = os.getenv('AWS_DEFAULT_REGION')
 
 _SUPPORTED_ENGINES = [ 'aurora', 'aurora-mysql', 'aurora-postgresql', 'neptune']
+
+_AUTOMATED_BACKUP_LIST = []
 
 logger = logging.getLogger()
 logger.setLevel(_LOGLEVEL.upper())
@@ -373,3 +375,92 @@ def search_tag_copied(response):
 
     return False
 
+
+def get_all_automated_snapshots(client):
+    global _AUTOMATED_BACKUP_LIST
+    if len(_AUTOMATED_BACKUP_LIST) == 0:
+        response = paginate_api_call(
+            client,
+            'describe_db_cluster_snapshots',
+            'DBClusterSnapshots',
+            SnapshotType='automated',
+        )
+        _AUTOMATED_BACKUP_LIST = response['DBClusterSnapshots']
+
+    return _AUTOMATED_BACKUP_LIST
+
+
+def copy_or_create_db_snapshot(
+    client,
+    db_cluster,
+    snapshot_identifier,
+    snapshot_tags,
+    use_automated_backup=True,
+    backup_interval=24,
+):
+
+    if use_automated_backup is False:
+        logger.info(
+            'creating snapshot out of a running db cluster: %s'
+            % db_cluster['DBClusterIdentifier']
+        )
+        snapshot_tags.append(
+            {'Key': 'DBClusterIdentifier', 'Value': db_cluster['DBClusterIdentifier']}
+        )
+        return client.create_db_cluster_snapshot(
+            DBClusterSnapshotIdentifier=snapshot_identifier,
+            DBClusterIdentifier=db_cluster['DBClusterIdentifier'],
+            Tags=snapshot_tags,
+        )
+
+    # Find the latest automted backup and Copy snapshot out of it
+    all_automated_snapshots = get_all_automated_snapshots(client)
+    dbcluster_automated_snapshots = [x for x in all_automated_snapshots
+                              if x['DBClusterIdentifier'] == db_cluster['DBClusterIdentifier']]
+
+    # Raise exception if no automated backup found
+    if len(dbcluster_automated_snapshots) <= 0:
+        log_message = (
+            'No automated snapshots found for db: %s'
+            % db_cluster['DBClusterIdentifier']
+        )
+        logger.error(log_message)
+        raise SnapshotToolException(log_message)
+
+    # filter last automated backup
+    dbcluster_automated_snapshots.sort(key=lambda x: x['SnapshotCreateTime'])
+    latest_snapshot = dbcluster_automated_snapshots[-1]
+
+    # Make sure automated backup is not more than backup_interval window old
+    backup_age = datetime.now(timezone.utc) - latest_snapshot['SnapshotCreateTime']
+    if backup_age.total_seconds() >= (backup_interval * 60 * 60):
+        now = datetime.now()
+        log_message = (
+            'Last automated backup was %s minutes ago. No latest automated backup available. '
+            % ((now - backup_age).total_seconds() / 60)
+        )
+        logger.warn(log_message)
+
+        # If last automated backup is over 2*backup_interval, then raise error
+        if backup_age.total_seconds() >= (backup_interval * 2 * 60 * 60):
+            logger.error(log_message)
+            raise SnapshotToolException(log_message)
+
+    logger.info(
+        'Creating snapshot out of an automated backup: %s'
+        % latest_snapshot['DBClusterSnapshotIdentifier']
+    )
+    snapshot_tags.append(
+        {
+            'Key': 'SourceDBClusterSnapshotIdentifier',
+            'Value': latest_snapshot['DBClusterSnapshotIdentifier'],
+        }
+    )
+    return client.copy_db_cluster_snapshot(
+        SourceDBClusterSnapshotIdentifier=latest_snapshot[
+            'DBClusterSnapshotIdentifier'
+        ],
+        TargetDBClusterSnapshotIdentifier=snapshot_identifier,
+        Tags=snapshot_tags,
+        CopyTags=False,
+    )

@@ -38,6 +38,7 @@ Here is a break down of each parameter for the source template:
 
 * **CodeBucket** - this parameter specifies the bucket where the code for the Lambda functions is located. Leave to DEFAULT_BUCKET to download from an AWS-managed bucket. The Lambda function code is located in the ```lambda``` directory. These files need to be on the **root* of the bucket or the CloudFormation templates will fail. 
 * **DeleteOldSnapshots** - Set to TRUE to enable functionanility that will delete snapshots after **RetentionDays**. Set to FALSE if you want to disable this functionality completely. (Associated Lambda and State Machine resources will not be created in the account). **WARNING** If you decide to enable this functionality later on, bear in mind it will delete **all snapshots**, older than **RetentionDays**, created by this tool; not just the ones created after **DeleteOldSnapshots** is set to TRUE.
+* **UseAutomatedBackup** - Set to TRUE to enable copying from automated backups, instead of from live database instance.
 * **ShareSnapshots** - Set to TRUE to enable functionality that will share snapshots with **DestAccount**. Set to FALSE to completely disable sharing. (Associated Lambda and State Machine resources will not be created in the account.)
 
 ### Destination Account
