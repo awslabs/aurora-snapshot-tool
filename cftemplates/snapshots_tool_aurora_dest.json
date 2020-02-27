@@ -33,12 +33,12 @@
 		"KmsKeyDestination": {
 			"Type": "String",
 			"Default": "None",
-			"Description": "Set to the ARN for the KMS key in the destination region to re-encrypt encrypted snapshots. Leave None if you are not using encryption"
+			"Description": "Set to the KMS Key Id in the destination region to re-encrypt encrypted snapshots. Leave None if you are not using encryption"
 		},
 		"KmsKeySource": {
 			"Type": "String",
 			"Default": "None",
-			"Description": "Set to the ARN for the KMS key in the SOURCE region to re-encrypt encrypted snapshots. Leave None if you are not using encryption"
+			"Description": "Set to the KMS Key Id in the SOURCE region to re-encrypt encrypted snapshots. Leave None if you are not using encryption"
 		},
 		"DeleteOldSnapshots": {
 			"Type": "String",
