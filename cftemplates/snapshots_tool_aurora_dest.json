@@ -72,12 +72,21 @@
 		"CrossAccount": {
 			"Fn::Equals": [{
 				"Ref": "CrossAccountCopy"
-			}, "TRUE" ]
+			}, "TRUE"]
 		},
 		"SNSTopicIsEmpty": {
 			"Fn::Equals": [{
 				"Ref": "SNSTopic"
 			}, ""]
+		},
+		"RegionOverridden": {
+			"Fn::Not": [{
+				"Fn::Equals": [{
+					"Ref": "SourceRegionOverride"
+				}, "NO"]
+			}]
+
+
 		}
 	},
 	"Mappings": {
@@ -152,7 +161,6 @@
 					"Version": "2008-10-17",
 					"Id": "__default_policy_ID",
 					"Statement": [{
-						"Sid": "__default_statement_ID",
 						"Effect": "Allow",
 						"Principal": {
 							"AWS": "*"
@@ -277,60 +285,57 @@
 						"Action": "sts:AssumeRole"
 					}]
 				},
+				"ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"],
 				"Policies": [{
-						"PolicyName": "inline_policy_snapshots_aurora_cw_logs",
-						"PolicyDocument": {
-							"Version": "2012-10-17",
-							"Statement": [{
-								"Effect": "Allow",
-								"Action": [
-									"logs:CreateLogGroup",
-									"logs:CreateLogStream",
-									"logs:PutLogEvents"
-								],
-								"Resource": "arn:aws:logs:*:*:*"
-							}]
-						}
-					},
-					{
-						"PolicyName": "inline_policy_snapshots_aurora_rds",
-						"PolicyDocument": {
-							"Version": "2012-10-17",
-							"Statement": [{
+					"PolicyName": "inline_policy_snapshots_aurora_rds",
+					"PolicyDocument": {
+						"Version": "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": [
+								"rds:DescribeDBClusters",
+								"rds:DescribeDBClusterSnapshots"
+							],
+							"Resource": "*"
+						},
+							{
 								"Effect": "Allow",
 								"Action": [
 									"rds:CreateDBClusterSnapshot",
 									"rds:DeleteDBClusterSnapshot",
-									"rds:DescribeDBClusters",
-									"rds:DescribeDBClusterSnapshots",
 									"rds:ModifyDBClusterSnapshotAttribute",
-									"rds:DescribeDBClusterSnapshotAttributes",
 									"rds:CopyDBClusterSnapshot",
+									"rds:DescribeDBClusterSnapshotAttributes",
 									"rds:ListTagsForResource"
 								],
-								"Resource": "*"
-							}]
-						}
+								"Resource": [
+									"arn:aws:rds:*:*:cluster:*",
+									"arn:aws:rds:*:*:cluster-snapshot:*"
+								]
 
-					},
+							}
+						]
+					}
+
+				},
 					{
-						"PolicyName": "inline_policy_snapshota_aurora_kms_access",
+						"PolicyName": "inline_policy_snapshots_aurora_kms_access",
 						"PolicyDocument": {
 							"Version": "2012-10-17",
 							"Statement": [{
-									"Sid": "AllowUseOfTheKey",
-									"Effect": "Allow",
-									"Action": [
-										"kms:Encrypt",
-										"kms:Decrypt",
-										"kms:ReEncrypt*",
-										"kms:GenerateDataKey*",
-										"kms:DescribeKey"
-									],
-									"Resource": [
-										"*"
-									]
-								},
+								"Sid": "AllowUseOfTheKey",
+								"Effect": "Allow",
+								"Action": [
+									"kms:Encrypt",
+									"kms:Decrypt",
+									"kms:ReEncrypt*",
+									"kms:GenerateDataKey*",
+									"kms:DescribeKey"
+								],
+								"Resource": [
+									"arn:aws:kms:*:*:key/*"
+								]
+							},
 								{
 									"Sid": "AllowAttachmentOfPersistentResources",
 									"Effect": "Allow",
@@ -340,7 +345,7 @@
 										"kms:RevokeGrant"
 									],
 									"Resource": [
-										"*"
+										"arn:aws:kms:*:*:key/*"
 									],
 									"Condition": {
 										"Bool": {
@@ -367,10 +372,12 @@
 							"Ref": "CodeBucket"
 						}]
 					},
-					"S3Key": { "Fn::If" : [ "CrossAccount", "copy_snapshots_dest_aurora.zip", "copy_snapshots_no_x_account_aurora.zip" ]}
+					"S3Key": {
+						"Fn::If": ["CrossAccount", "copy_snapshots_dest_aurora.zip", "copy_snapshots_no_x_account_aurora.zip"]
+					}
 				},
 				"Description": "This functions copies snapshots for Aurora clusters shared with this account. It checks for existing snapshots following the pattern specified in the environment variables with the following format: <dbcluster-identifier>-YYYY-MM-DD-HH-MM",
-				"MemorySize" : 512,
+				"MemorySize": 512,
 				"Environment": {
 					"Variables": {
 						"SNAPSHOT_PATTERN": {
@@ -418,14 +425,16 @@
 							"Ref": "CodeBucket"
 						}]
 					},
-					"S3Key": {"Fn::If" : [ "CrossAccount", "delete_old_snapshots_dest_aurora.zip", "delete_old_snapshots_no_x_account_aurora.zip" ]}
+					"S3Key": {
+						"Fn::If": ["CrossAccount", "delete_old_snapshots_dest_aurora.zip", "delete_old_snapshots_no_x_account_aurora.zip"]
+					}
 				},
 				"Description": "This function enforces retention on the snapshots shared with the destination account.",
-				"MemorySize" : 512,
+				"MemorySize": 512,
 				"Environment": {
 					"Variables": {
-					    "SNAPSHOT_PATTERN": {
-						    "Ref": "SnapshotPattern"
+						"SNAPSHOT_PATTERN": {
+							"Ref": "SnapshotPattern"
 						},
 						"DEST_REGION": {
 							"Ref": "DestinationRegion"
@@ -472,7 +481,12 @@
 							"Action": [
 								"lambda:InvokeFunction"
 							],
-							"Resource": "*"
+							"Resource": [{
+								"Fn::GetAtt": ["lambdaCopySnapshotsAurora", "Arn"]
+							}, {
+								"Fn::GetAtt": ["lambdaDeleteOldDestAurora", "Arn"]
+							}]
+
 						}]
 					}
 				}]
@@ -483,15 +497,15 @@
 			"Properties": {
 				"DefinitionString": {
 					"Fn::Join": ["", [{
-							"Fn::Join": ["\n", [
-								" {\"Comment\":\"Copies snapshots locally and then to DEST_REGION\",",
-								" \"StartAt\":\"CopySnapshots\",",
-								" \"States\":{",
-								"   \"CopySnapshots\":{",
-								"     \"Type\":\"Task\",",
-								"     \"Resource\": "
-							]]
-						},
+						"Fn::Join": ["\n", [
+							" {\"Comment\":\"Copies snapshots locally and then to DEST_REGION\",",
+							" \"StartAt\":\"CopySnapshots\",",
+							" \"States\":{",
+							"   \"CopySnapshots\":{",
+							"     \"Type\":\"Task\",",
+							"     \"Resource\": "
+						]]
+					},
 						"\"",
 						{
 							"Fn::GetAtt": ["lambdaCopySnapshotsAurora", "Arn"]
@@ -533,15 +547,15 @@
 			"Properties": {
 				"DefinitionString": {
 					"Fn::Join": ["", [{
-							"Fn::Join": ["\n", [
-								" {\"Comment\":\"DeleteOld for Aurora snapshots in destination region\",",
-								" \"StartAt\":\"DeleteOldDestRegion\",",
-								" \"States\":{",
-								"   \"DeleteOldDestRegion\":{",
-								"     \"Type\":\"Task\",",
-								"     \"Resource\": "
-							]]
-						},
+						"Fn::Join": ["\n", [
+							" {\"Comment\":\"DeleteOld for Aurora snapshots in destination region\",",
+							" \"StartAt\":\"DeleteOldDestRegion\",",
+							" \"States\":{",
+							"   \"DeleteOldDestRegion\":{",
+							"     \"Type\":\"Task\",",
+							"     \"Resource\": "
+						]]
+					},
 						"\"",
 						{
 							"Fn::GetAtt": ["lambdaDeleteOldDestAurora", "Arn"]
@@ -599,7 +613,11 @@
 							"Action": [
 								"states:StartExecution"
 							],
-							"Resource": "*"
+							"Resource": [{
+								"Ref": "statemachineCopySnapshotsDestAurora"
+							}, {
+								"Ref": "statemachineDeleteOldSnapshotsDestAurora"
+							}]
 						}]
 					}
 				}]

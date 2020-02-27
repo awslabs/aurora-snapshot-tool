@@ -83,7 +83,15 @@
 			"Fn::Equals": [{
 				"Ref": "SNSTopic"
 			}, ""]
+		},
+		"RegionOverridden": {
+			"Fn::Not": [{
+				"Fn::Equals": [{
+					"Ref": "SourceRegionOverride"
+				}, "NO"]
+			}]
 		}
+
 	},
 	"Mappings": {
 		"Buckets": {
@@ -157,7 +165,6 @@
 					"Version": "2008-10-17",
 					"Id": "__default_policy_ID",
 					"Statement": [{
-						"Sid": "__default_statement_ID",
 						"Effect": "Allow",
 						"Principal": {
 							"AWS": "*"
@@ -324,42 +331,52 @@
 						"Action": "sts:AssumeRole"
 					}]
 				},
+				"ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"],
 				"Policies": [{
-					"PolicyName": "inline_policy_snapshots_aurora_cw_logs",
+					"PolicyName": "inline_policy_snapshots_aurora_rds",
 					"PolicyDocument": {
 						"Version": "2012-10-17",
 						"Statement": [{
 							"Effect": "Allow",
 							"Action": [
-								"logs:CreateLogGroup",
-								"logs:CreateLogStream",
-								"logs:PutLogEvents"
+								"rds:DescribeDBClusters",
+								"rds:DescribeDBClusterSnapshots"
 							],
-							"Resource": "arn:aws:logs:*:*:*"
-						}]
-					}
-				},
-					{
-						"PolicyName": "inline_policy_snapshots_aurora_rds",
-						"PolicyDocument": {
-							"Version": "2012-10-17",
-							"Statement": [{
+							"Resource": "*"
+						},
+							{
 								"Effect": "Allow",
 								"Action": [
 									"rds:CreateDBClusterSnapshot",
 									"rds:DeleteDBClusterSnapshot",
-									"rds:DescribeDBClusters",
-									"rds:DescribeDBClusterSnapshots",
 									"rds:ModifyDBClusterSnapshotAttribute",
 									"rds:DescribeDBClusterSnapshotAttributes",
 									"rds:ListTagsForResource"
 								],
-								"Resource": "*"
-							}]
-						}
-
+								"Resource": [{
+									"Fn::Join": [":", ["arn:aws:rds", {
+										"Fn::If": ["RegionOverridden", {
+											"Ref": "SourceRegionOverride"
+										}, {
+											"Ref": "AWS::Region"
+										}]
+									}, "*:cluster:*"]]
+								},
+									{
+										"Fn::Join": [":", ["arn:aws:rds", {
+											"Fn::If": ["RegionOverridden", {
+												"Ref": "SourceRegionOverride"
+											}, {
+												"Ref": "AWS::Region"
+											}]
+										}, "*:cluster-snapshot:*"]]
+									}
+								]
+							}
+						]
 					}
-				]
+
+				}]
 			}
 		},
 		"lambdaTakeSnapshotsAurora": {
@@ -527,7 +544,21 @@
 							"Action": [
 								"lambda:InvokeFunction"
 							],
-							"Resource": "*"
+							"Resource": {
+								"Fn::If": ["Share", [{
+									"Fn::GetAtt": ["lambdaTakeSnapshotsAurora", "Arn"]
+								}, {
+									"Fn::GetAtt": ["lambdaShareSnapshotsAurora", "Arn"]
+								}, {
+									"Fn::GetAtt": ["lambdaDeleteOldSnapshotsAurora", "Arn"]
+								}],
+									[{
+										"Fn::GetAtt": ["lambdaTakeSnapshotsAurora", "Arn"]
+									}, {
+										"Fn::GetAtt": ["lambdaDeleteOldSnapshotsAurora", "Arn"]
+									}]
+								]
+							}
 						}]
 					}
 				}]
@@ -704,7 +735,21 @@
 							"Action": [
 								"states:StartExecution"
 							],
-							"Resource": "*"
+							"Resource": {
+								"Fn::If": ["Share", [{
+									"Ref": "stateMachineTakeSnapshotsAurora"
+								}, {
+									"Ref": "statemachineShareSnapshotsAurora"
+								}, {
+									"Ref": "statemachineDeleteOldSnapshotsAurora"
+								}],
+									[{
+										"Ref": "stateMachineTakeSnapshotsAurora"
+									}, {
+										"Ref": "statemachineDeleteOldSnapshotsAurora"
+									}]
+								]
+							}
 						}]
 					}
 				}]
