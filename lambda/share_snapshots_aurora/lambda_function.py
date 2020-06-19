@@ -22,7 +22,7 @@ from snapshots_tool_utils import *
 
 # Initialize from environment variable
 LOGLEVEL = os.getenv('LOG_LEVEL', 'ERROR').strip()
-DEST_ACCOUNTID = str(os.getenv('DEST_ACCOUNT', '000000000000')).strip()
+DEST_ACCOUNTID = str(os.getenv('DEST_ACCOUNT', '000000000000')).replace(" ", "").split('.')
 PATTERN = os.getenv('PATTERN', 'ALL_CLUSTERS')
 
 if os.getenv('REGION_OVERRIDE', 'NO') != 'NO':
@@ -54,9 +54,7 @@ def lambda_handler(event, context):
                 response_modify = client.modify_db_cluster_snapshot_attribute(
                     DBClusterSnapshotIdentifier=snapshot_identifier,
                     AttributeName='restore',
-                    ValuesToAdd=[
-                        DEST_ACCOUNTID
-                    ]
+                    ValuesToAdd=DEST_ACCOUNTID
                 )
             except Exception as e:
                 logger.error('Exception sharing {}: {}'.format(snapshot_identifier, e))
