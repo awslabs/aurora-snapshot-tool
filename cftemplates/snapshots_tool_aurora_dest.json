@@ -306,7 +306,8 @@
 									"rds:ModifyDBClusterSnapshotAttribute",
 									"rds:CopyDBClusterSnapshot",
 									"rds:DescribeDBClusterSnapshotAttributes",
-									"rds:ListTagsForResource"
+									"rds:ListTagsForResource",
+									"rds:AddTagsToResource"
 								],
 								"Resource": [
 									"arn:aws:rds:*:*:cluster:*",
