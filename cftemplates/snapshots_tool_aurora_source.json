@@ -351,7 +351,8 @@
 									"rds:DeleteDBClusterSnapshot",
 									"rds:ModifyDBClusterSnapshotAttribute",
 									"rds:DescribeDBClusterSnapshotAttributes",
-									"rds:ListTagsForResource"
+									"rds:ListTagsForResource",
+									"rds:AddTagsToResource"
 								],
 								"Resource": [{
 									"Fn::Join": [":", ["arn:aws:rds", {
