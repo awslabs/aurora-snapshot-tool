@@ -4,6 +4,21 @@ The Snapshot Tool for Amazon Aurora automates the task of creating manual snapsh
 
 ## Getting Started
 
+## Building From Source and Deploying
+
+You will need also to build from source and deploy the code for the Lambda functions to your own bucket in your own account. To build, you need to be on a unix-like system (e.g., macOS or some flavour of Linux) and you need to have `make` and `zip`.
+
+1. Create an S3 bucket to hold the Lambda function zip files. The bucket must be in the same region where the Lambda functions will run. And the Lambda functions must run in the same region as the RDS instances.
+
+1. Clone the repository using git or downloading from Github
+
+1. Edit the `Makefile` file and set `S3DEST` to be the bucket name where you want the functions to go. Set the `AWSARGS`, `AWSCMD` and `ZIPCMD` variables as well.
+
+1. Type `make` at the command line. It will call `zip` to make the zip files, and then it will call `aws s3 cp` to copy the zip files to the bucket you named.
+
+1. Be sure to use the correct bucket name in the `CodeBucket` parameter when launching the stack in both accounts.
+
+
 To deploy on your accounts, you will need to use the Cloudformation templates provided.
 snapshot_tool_aurora_source.json needs to run in the source account (or the account that runs the Aurora clusters)
 snapshot_tool_aurora_dest.json needs to run in the destination account (or the account where you'd like to keep your snapshots)
@@ -36,7 +51,7 @@ Here is a break down of each parameter for the source template:
 * **SourceRegionOverride** - if you are running Aurora on a region where Step Functions is not available, this parameter will allow you to override the source region. For example, at the time of this writing, you may be running Aurora in Northern California (us-west-1) and would like to copy your snapshots to Montreal (ca-central-1). Neither region supports Step Functions at the time of this writing so deploying this tool there will not work. The solution is to run this template in a region that supports Step Functions (such as North Virginia or Ohio) and set **SourceRegionOverride** to *us-west-1*. 
 **IMPORTANT**: deploy to the closest regions for best results.
 
-* **CodeBucket** - this parameter specifies the bucket where the code for the Lambda functions is located. Leave to DEFAULT_BUCKET to download from an AWS-managed bucket. The Lambda function code is located in the ```lambda``` directory. These files need to be on the **root* of the bucket or the CloudFormation templates will fail. 
+* **CodeBucket** - this parameter specifies the bucket where the code for the Lambda functions is located. The Lambda function code is located in the ```lambda``` directory. These files need to be zipped and on the **root* of the bucket or the CloudFormation templates will fail. Please see instructions below on how to build this file hierarchy
 * **DeleteOldSnapshots** - Set to TRUE to enable functionanility that will delete snapshots after **RetentionDays**. Set to FALSE if you want to disable this functionality completely. (Associated Lambda and State Machine resources will not be created in the account). **WARNING** If you decide to enable this functionality later on, bear in mind it will delete **all snapshots**, older than **RetentionDays**, created by this tool; not just the ones created after **DeleteOldSnapshots** is set to TRUE.
 * **ShareSnapshots** - Set to TRUE to enable functionality that will share snapshots with **DestAccount**. Set to FALSE to completely disable sharing. (Associated Lambda and State Machine resources will not be created in the account.)
 * **SnapshotNamePrefix** - Set a name that will be added to the front of the snapshot identifiers when created, so that they are formatted as Addname-ClusterIdentifier-Timestamp. Useful if you need to share snapshots from multiple accounts and need to identify from which account they came from. Use 'NONE' or leave empty if you do not need a prefix (default)
@@ -60,23 +75,10 @@ The following parameters are available:
 * **KmsKeyDestination** KMS Key to be used for copying encrypted snapshots to the destination region. If you are not copying to a different region, this parameter is not necessary. 
 * **RetentionDays** - as in the source account, the amount of days you want your snapshots to be kept. **Do not set this parameter to a value lower than the source account.** Snapshots created more than **RetentionDays** ago will be automatically deleted (only if they contain a tag with Key: CopiedBy, Value: Snapshot Tool for Aurora)
 
-## Building From Source and Deploying
-
-As published, these CloudFormation templates will pull the zip files for the Lambda functions from an AWS-owned and operated S3 bucket. You can also choose to build from source and deploy to your own bucket in your own account. To build, you need to be on a unix-like system (e.g., macOS or some flavour of Linux) and you need to have `make` and `zip`.
-
-1. Create an S3 bucket to hold the Lambda function zip files. The bucket must be in the same region where the Lambda functions will run. And the Lambda functions must run in the same region as the RDS instances. 
-
-1. Clone the repository
-
-1. Edit the `Makefile` file and set `S3DEST` to be the bucket name where you want the functions to go. Set the `AWSARGS`, `AWSCMD` and `ZIPCMD` variables as well.
-
-1. Type `make` at the command line. It will call `zip` to make the zip files, and then it will call `aws s3 cp` to copy the zip files to the bucket you named.
-
-1. Be sure to use the correct bucket name in the `CodeBucket` parameter when launching the stack in both accounts.
 
 ## Updating
 
-This tool is fundamentally stateless. The state is mainly in the tags on the snapshots themselves and the parameters to the CloudFormation stack. If you make changes to the parameters or make changes to the Lambda function code, it is best to delete the stack and then launch the stack again. 
+This tool is fundamentally stateless. The state is mainly in the tags on the snapshots themselves and the parameters to the CloudFormation stack. If you make changes to the parameters or make changes to the Lambda function code, it is best to delete the stack and then launch the stack again.
 
 
 ## Authors
