@@ -18,7 +18,7 @@
 		"DestinationAccount": {
 			"Type": "Number",
 			"Default": "000000000000",
-			"Description": "Destination account with no dashes."
+			"Description": "Destination account with no dashes. Can be a single ID or a period separated list of IDs (ex. \"123.456\" becomes [\"123\",\"456\"])."
 		},
 		"ShareSnapshots": {
 			"Type": "String",
