@@ -207,6 +207,16 @@ def copy_local(snapshot_identifier, snapshot_object, target_identifier=None):
     tags = [{
             'Key': 'CopiedBy',
             'Value': 'Snapshot Tool for Aurora'
+            },
+            # CreatedBy so re-encrypted snapshots can be deleted automatically.
+            {
+            'Key': 'CreatedBy',
+            'Value': 'Snapshot Tool for Aurora'
+            },
+            # CreatedBy so re-encrypted snapshots can be shared and copied.
+            {
+            'Key': 'shareAndCopy',
+            'Value': 'YES'
             }]
 
     if snapshot_object['StorageEncrypted']:
@@ -346,7 +356,8 @@ def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
 
 
 def search_tag_share(response):
-    # Takes a describe_db_cluster_snapshots response and searches for our shareAndCopy tag
+    # Takes a describe_db_cluster_snapshots response and searches for our shareAndCopy tag,
+    # indicating that the snapshot can be shared.
     try:
 
         for tag in response['TagList']:
@@ -399,3 +410,10 @@ def search_tag_copied(response):
 
     return False
 
+# lookup_kms_aliases() takes an arn and returns its aliases.
+def lookup_kms_aliases(key_arn):
+    client = boto3.client('kms')
+    response = client.list_aliases(
+        KeyId=key_arn
+    )
+    return [a['AliasName'] for a in response['Aliases']]
