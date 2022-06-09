@@ -30,6 +30,7 @@ ZIPCMD=zip
 # if you define "._foo" as a file on this line, then it will zip up a
 # folder called foo, adding a standard file into it to make foo.zip.
 all:	._copy_snapshots_dest_aurora \
+	._copy_snapshots_source_aurora \
 	._copy_snapshots_no_x_account_aurora \
 	._delete_old_snapshots_dest_aurora \
 	._delete_old_snapshots_no_x_account_aurora \

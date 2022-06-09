@@ -102,6 +102,8 @@ def get_own_snapshots_source(pattern, response):
             if search_tag_created(response_tags):
                 filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                     'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
+                if snapshot['StorageEncrypted']:
+                    filtered[snapshot['DBClusterSnapshotIdentifier']]['StorageEncrypted'] = True
         #Changed the next line to search for ALL_CLUSTERS or ALL_SNAPSHOTS so it will work with no-x-account
         elif snapshot['SnapshotType'] == 'manual' and (pattern == 'ALL_CLUSTERS' or pattern == 'ALL_SNAPSHOTS') and snapshot['Engine'] in _SUPPORTED_ENGINES:
             client = boto3.client('rds', region_name=_REGION)
@@ -111,6 +113,8 @@ def get_own_snapshots_source(pattern, response):
             if search_tag_created(response_tags):
                 filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                     'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
+                if snapshot['StorageEncrypted']:
+                    filtered[snapshot['DBClusterSnapshotIdentifier']]['StorageEncrypted'] = True
 
     return filtered
 
@@ -196,12 +200,23 @@ def get_own_snapshots_dest(pattern, response):
     return filtered
 
 
-def copy_local(snapshot_identifier, snapshot_object):
+def copy_local(snapshot_identifier, snapshot_object, target_identifier=None):
+    target_identifier = target_identifier or snapshot_identifier
     client = boto3.client('rds', region_name=_REGION)
 
     tags = [{
             'Key': 'CopiedBy',
             'Value': 'Snapshot Tool for Aurora'
+            },
+            # CreatedBy so re-encrypted snapshots can be deleted automatically.
+            {
+            'Key': 'CreatedBy',
+            'Value': 'Snapshot Tool for Aurora'
+            },
+            # CreatedBy so re-encrypted snapshots can be shared and copied.
+            {
+            'Key': 'shareAndCopy',
+            'Value': 'YES'
             }]
 
     if snapshot_object['StorageEncrypted']:
@@ -210,7 +225,7 @@ def copy_local(snapshot_identifier, snapshot_object):
 
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier=snapshot_identifier,
+            TargetDBClusterSnapshotIdentifier=target_identifier,
             KmsKeyId=_KMS_KEY_SOURCE_REGION,
             Tags=tags)
 
@@ -219,7 +234,7 @@ def copy_local(snapshot_identifier, snapshot_object):
 
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier=snapshot_identifier,
+            TargetDBClusterSnapshotIdentifier=target_identifier,
             Tags=tags)
 
     return response
@@ -255,13 +270,13 @@ def copy_remote(snapshot_identifier, snapshot_object):
 def get_timestamp(snapshot_identifier, snapshot_list):
 
     # Searches for a timestamp on a snapshot name
-    pattern = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
+    pattern = '%s-([0-9-]+)([0-9]+).*' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
 
     date_time = re.search(pattern, snapshot_identifier)
 
     if date_time is not None:
         try:
-            return datetime.strptime(date_time.group(1), _TIMESTAMP_FORMAT)
+            return datetime.strptime(date_time.group(1) + date_time.group(2), _TIMESTAMP_FORMAT)
 
         except Exception:
             return None
@@ -341,12 +356,34 @@ def paginate_api_call(client, api_call, objecttype, *args, **kwargs):
 
 
 def search_tag_share(response):
-    # Takes a describe_db_cluster_snapshots response and searches for our shareAndCopy tag
+    # Takes a describe_db_cluster_snapshots response and searches for our shareAndCopy tag,
+    # indicating that the snapshot can be shared.
     try:
 
         for tag in response['TagList']:
 
             if tag['Key'] == 'shareAndCopy' and tag['Value'] == 'YES':
+
+                for tag2 in response['TagList']:
+
+                    if tag2['Key'] == 'CreatedBy' and tag2['Value'] == 'Snapshot Tool for Aurora':
+
+                        return True
+
+    except Exception:
+        return False
+
+    return False
+
+# search_tag_reencrypt() takes a describe_db_cluster_snapshots() response and
+# searches for a reEncrypt tag, indicating that the snapshot needs to be
+# re-encrypted with a customer-managed key before it can be shared.
+def search_tag_reencrypt(response):
+    try:
+
+        for tag in response['TagList']:
+
+            if tag['Key'] == 'reEncrypt' and tag['Value'] == 'YES':
 
                 for tag2 in response['TagList']:
 
@@ -373,3 +410,10 @@ def search_tag_copied(response):
 
     return False
 
+# lookup_kms_aliases() takes an arn and returns its aliases.
+def lookup_kms_aliases(key_arn):
+    client = boto3.client('kms')
+    response = client.list_aliases(
+        KeyId=key_arn
+    )
+    return [a['AliasName'] for a in response['Aliases']]
