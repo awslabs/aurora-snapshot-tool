@@ -196,7 +196,8 @@ def get_own_snapshots_dest(pattern, response):
     return filtered
 
 
-def copy_local(snapshot_identifier, snapshot_object):
+def copy_local(snapshot_identifier, snapshot_object, target_identifier=None):
+    target_identifier = target_identifier or snapshot_identifier
     client = boto3.client('rds', region_name=_REGION)
 
     tags = [{
@@ -210,7 +211,7 @@ def copy_local(snapshot_identifier, snapshot_object):
 
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier=snapshot_identifier,
+            TargetDBClusterSnapshotIdentifier=target_identifier,
             KmsKeyId=_KMS_KEY_SOURCE_REGION,
             Tags=tags)
 
@@ -219,7 +220,7 @@ def copy_local(snapshot_identifier, snapshot_object):
 
         response = client.copy_db_cluster_snapshot(
             SourceDBClusterSnapshotIdentifier=snapshot_object['Arn'],
-            TargetDBClusterSnapshotIdentifier=snapshot_identifier,
+            TargetDBClusterSnapshotIdentifier=target_identifier,
             Tags=tags)
 
     return response
@@ -255,13 +256,13 @@ def copy_remote(snapshot_identifier, snapshot_object):
 def get_timestamp(snapshot_identifier, snapshot_list):
 
     # Searches for a timestamp on a snapshot name
-    pattern = '%s-(.+)' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
+    pattern = '%s-([0-9-]+)([0-9]+).*' % snapshot_list[snapshot_identifier]['DBClusterIdentifier']
 
     date_time = re.search(pattern, snapshot_identifier)
 
     if date_time is not None:
         try:
-            return datetime.strptime(date_time.group(1), _TIMESTAMP_FORMAT)
+            return datetime.strptime(date_time.group(1) + date_time.group(2), _TIMESTAMP_FORMAT)
 
         except Exception:
             return None

@@ -71,7 +71,7 @@ def lambda_handler(event, context):
 
                     # Copy to own account
                     try:
-                        copy_local(snapshot_identifier, snapshot_object)
+                        copy_local(snapshot_identifier, snapshot_object, f'{snapshot_identifier}-reencrypted')
 
                     except Exception as e:
                         pending_copies += 1
