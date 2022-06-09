@@ -102,6 +102,8 @@ def get_own_snapshots_source(pattern, response):
             if search_tag_created(response_tags):
                 filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                     'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
+                if snapshot['StorageEncrypted']:
+                    filtered[snapshot['DBClusterSnapshotIdentifier']]['StorageEncrypted'] = True
         #Changed the next line to search for ALL_CLUSTERS or ALL_SNAPSHOTS so it will work with no-x-account
         elif snapshot['SnapshotType'] == 'manual' and (pattern == 'ALL_CLUSTERS' or pattern == 'ALL_SNAPSHOTS') and snapshot['Engine'] in _SUPPORTED_ENGINES:
             client = boto3.client('rds', region_name=_REGION)
@@ -111,6 +113,8 @@ def get_own_snapshots_source(pattern, response):
             if search_tag_created(response_tags):
                 filtered[snapshot['DBClusterSnapshotIdentifier']] = {
                     'Arn': snapshot['DBClusterSnapshotArn'], 'Status': snapshot['Status'], 'DBClusterIdentifier': snapshot['DBClusterIdentifier']}
+                if snapshot['StorageEncrypted']:
+                    filtered[snapshot['DBClusterSnapshotIdentifier']]['StorageEncrypted'] = True
 
     return filtered
 
