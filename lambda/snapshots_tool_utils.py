@@ -359,6 +359,27 @@ def search_tag_share(response):
 
     return False
 
+# search_tag_reencrypt() takes a describe_db_cluster_snapshots() response and
+# searches for a reEncrypt tag, indicating that the snapshot needs to be
+# re-encrypted with a customer-managed key before it can be shared.
+def search_tag_reencrypt(response):
+    try:
+
+        for tag in response['TagList']:
+
+            if tag['Key'] == 'reEncrypt' and tag['Value'] == 'YES':
+
+                for tag2 in response['TagList']:
+
+                    if tag2['Key'] == 'CreatedBy' and tag2['Value'] == 'Snapshot Tool for Aurora':
+
+                        return True
+
+    except Exception:
+        return False
+
+    return False
+
 
 def search_tag_copied(response):
     try:
