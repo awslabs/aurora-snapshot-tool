@@ -35,6 +35,11 @@
 			"Default": "7",
 			"Description": "Number of days to keep snapshots in retention before deleting them"
 		},
+		"KmsKeySource": {
+			"Type": "String",
+			"Default": "None",
+			"Description": "Set to the KMS Key Id in the SOURCE region if you need to re-encrypt default encrypted snapshots for cross-account sharing. Leave None otherwise."
+		},
 		"LogLevel": {
 			"Type": "String",
 			"Default": "ERROR",
@@ -179,6 +184,48 @@
 				}]
 			}
 		},
+		"alarmcwCopyFailed": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"AlarmDescription": "DB snapshot copying status",
+				"ActionsEnabled": "true",
+				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
+				"EvaluationPeriods": "1",
+				"MetricName": "ExecutionsFailed",
+				"Namespace": "AWS/States",
+				"Period": "300",
+				"Statistic": "Sum",
+				"Threshold": "1.0",
+				"TreatMissingData": "ignore",
+				"AlarmActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"OKActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"InsufficientDataActions": [{
+					"Fn::If": ["SNSTopicIsEmpty", {
+						"Ref": "snsTopicSnapshotsAuroraTool"
+					}, {
+						"Ref": "SNSTopic"
+					}]
+				}],
+				"Dimensions": [{
+					"Name": "StateMachineArn",
+					"Value": {
+						"Ref": "statemachineCopySnapshotsAurora"
+					}
+				}]
+			}
+		},
 
 		"alarmcwShareFailed": {
 			"Condition": "Share",
@@ -292,6 +339,7 @@
 							{
 								"Effect": "Allow",
 								"Action": [
+									"rds:CopyDBClusterSnapshot",
 									"rds:CreateDBClusterSnapshot",
 									"rds:DeleteDBClusterSnapshot",
 									"rds:ModifyDBClusterSnapshotAttribute",
@@ -318,7 +366,14 @@
 										}, "*:cluster-snapshot:*"]]
 									}
 								]
-							}
+							},
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "kms:ListAliases"
+                                ],
+                                "Resource": "*"
+                            }
 						]
 					}
 
@@ -350,6 +405,9 @@
 						"REGION_OVERRIDE": {
 							"Ref": "SourceRegionOverride"
 						},
+						"SHARE_SNAPSHOTS": {
+							"Ref": "ShareSnapshots"
+						},
 						"SNAPSHOT_NAME_PREFIX": {
 							"Ref": "SnapshotNamePrefix"
 						}
@@ -366,6 +424,47 @@
 				"Timeout": 300
 			}
 		},
+		"lambdaCopySnapshotsAurora": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+				"Code": {
+					"S3Bucket": {
+								"Ref": "CodeBucket"
+					},
+					"S3Key": "copy_snapshots_source_aurora.zip"
+				},
+				"Description": "This Lambda function copies snapshots created by aurora_take_snapshot with the KMS key set in the environment variable KMS_KEY_SOURCE_REGION.",
+				"MemorySize": 512,
+				"Environment": {
+					"Variables": {
+					   "KMS_KEY_SOURCE_REGION": {
+							   "Ref": "KmsKeySource"
+					   },
+					   "PATTERN": {
+							   "Ref": "ClusterNamePattern"
+					   },
+					   "LOG_LEVEL": {
+							   "Ref": "LogLevel"
+					   },
+					   "REGION_OVERRIDE": {
+							   "Ref": "SourceRegionOverride"
+					   },
+					   "RETENTION_DAYS": {
+							   "Ref": "RetentionDays"
+					   }
+					}
+				},
+				"Role": {
+					"Fn::GetAtt": [
+						"iamroleSnapshotsAurora",
+						"Arn"
+					]
+				},
+				"Runtime": "python3.7",
+				"Handler": "lambda_function.lambda_handler",
+				"Timeout": 300
+		   }
+	   },
 		"lambdaShareSnapshotsAurora": {
 			"Type": "AWS::Lambda::Function",
 			"Condition": "Share",
@@ -470,10 +569,14 @@
 								}, {
 									"Fn::GetAtt": ["lambdaShareSnapshotsAurora", "Arn"]
 								}, {
+									"Fn::GetAtt": ["lambdaCopySnapshotsAurora", "Arn"]
+								}, {
 									"Fn::GetAtt": ["lambdaDeleteOldSnapshotsAurora", "Arn"]
 								}],
 									[{
 										"Fn::GetAtt": ["lambdaTakeSnapshotsAurora", "Arn"]
+									}, {
+										"Fn::GetAtt": ["lambdaCopySnapshotsAurora", "Arn"]
 									}, {
 										"Fn::GetAtt": ["lambdaDeleteOldSnapshotsAurora", "Arn"]
 									}]
@@ -533,6 +636,55 @@
 				}
 			}
 		},
+		"statemachineCopySnapshotsAurora": {
+			"Type": "AWS::StepFunctions::StateMachine",
+			"Properties": {
+				"DefinitionString": {
+					"Fn::Join": ["", [{
+						"Fn::Join": ["\n", [
+							" {\"Comment\":\"Copies default-key encrypted snapshots using a different key.\",",
+							" \"StartAt\":\"CopySnapshots\",",
+							" \"States\":{",
+							"   \"CopySnapshots\":{",
+							"     \"Type\":\"Task\",",
+							"     \"Resource\": "
+						]]
+					},
+						"\"",
+						{
+							"Fn::GetAtt": ["lambdaCopySnapshotsAurora", "Arn"]
+						}, "\"\n,",
+						{
+							"Fn::Join": ["\n", [
+								"     \"Retry\":[",
+								"       {",
+								"       \"ErrorEquals\":[ ",
+								"         \"SnapshotToolException\"",
+								"       ],",
+								"       \"IntervalSeconds\":300,",
+								"       \"MaxAttempts\":20,",
+								"       \"BackoffRate\":1",
+								"     },",
+								"     {",
+								"      \"ErrorEquals\":[ ",
+								"         \"States.ALL\"], ",
+								"         \"IntervalSeconds\": 30,",
+								"         \"MaxAttempts\": 20,",
+								"         \"BackoffRate\": 1",
+								"     }",
+								"    ],",
+								"    \"End\": true ",
+								"   }",
+								" }}"
+							]]
+						}
+					]]
+				},
+				"RoleArn": {
+					"Fn::GetAtt": ["iamroleStateExecution", "Arn"]
+				}
+		   }
+	   },
 		"statemachineShareSnapshotsAurora": {
 			"Type": "AWS::StepFunctions::StateMachine",
 			"Condition": "Share",
@@ -661,10 +813,14 @@
 								}, {
 									"Ref": "statemachineShareSnapshotsAurora"
 								}, {
+									"Ref": "statemachineCopySnapshotsAurora"
+								}, {
 									"Ref": "statemachineDeleteOldSnapshotsAurora"
 								}],
 									[{
 										"Ref": "stateMachineTakeSnapshotsAurora"
+									}, {
+										"Ref": "statemachineCopySnapshotsAurora"
 									}, {
 										"Ref": "statemachineDeleteOldSnapshotsAurora"
 									}]
@@ -716,6 +872,25 @@
 				}]
 			}
 		},
+        "cwEventCopySnapshotsAurora": {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+                "Description": "Triggers the CopySnapshotsAurora state machine",
+                "ScheduleExpression": {
+                    "Fn::Join": ["", ["cron(", "/30 * * * ? *", ")"]]
+                },
+                "State": "ENABLED",
+                "Targets": [{
+                    "Arn": {
+                        "Ref": "statemachineCopySnapshotsAurora"
+                    },
+                    "Id": "Target1",
+                    "RoleArn": {
+                        "Fn::GetAtt": ["iamroleStepInvocation", "Arn"]
+                    }
+                }]
+            }
+        },
 		"cwEventAuroraDeleteOldSnapshotsAurora": {
 			"Type": "AWS::Events::Rule",
 			"Condition": "DeleteOld",
