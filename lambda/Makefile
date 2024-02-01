@@ -16,12 +16,12 @@
 
 # Override S3 destination by changing this variable or setting it in the
 # environment
-S3DEST?=[YOUR BUCKET HERE]
+S3DEST?=aurora-snapshot-copy-tool
 
 # Set these if, for example, you use profiles on the AWS command line
 # or if your 'aws' executable is in a weird place.
-AWSARGS=--region [YOUR REGION] --profile [YOUR PROFILE, or 'default', or remove this]
-AWSCMD=aws
+AWSARGS=session --region eu-west-1
+AWSCMD=aws-mfa-secure
 ZIPCMD=zip
 
 # disable all implicit make rules
@@ -42,7 +42,7 @@ clean:
 
 ._%: %.zip
 	"$(AWSCMD)" $(AWSARGS) s3 cp "$<" "s3://$(S3DEST)" \
-		--grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+		#--grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
 	cp "$<" "$@"
 
 # This rule is a BSD make style rule that says "to make foo.zip, call
